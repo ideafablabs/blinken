@@ -6,23 +6,29 @@
 var util = require('util');
 
 // Setup grid
+console.log("Loading Grid");
 var Grid = require('./grid');
 var grid = new Grid();
 
 // Setup mixer and set rendering loop in motion
+console.log("Loading Mixer");
 var Mixer = require('./mixer');
 var mixer = new Mixer(grid);
 mixer.run();
 
 // Get source registry (this loads sources themselves as well)
+console.log("Loading Sources");
 var Registry = require('./registry');
 // console.log(registry);
+
 var sources = new Registry( 'sources' );
 // var filters = new Registry( 'filters' );
 // console.log(sources);
+
 var api = new Object();
 
-var config = require('./config')
+console.log("Loading Config");
+var config = require('./config');  // fixme? this is also required() in server.js - any problem if this is re-loaded?
 
 //**************************************
 //
@@ -186,6 +192,12 @@ api.grid.map = function() {
   return grid.pixel_map;
 };
 
+api.grid.toggleDisplay = function() {
+  return grid.pixel_map;
+};
+
+
+
 //***************************************************************
 //
 //                Register handlers
@@ -276,6 +288,18 @@ exports.registerSocketHandlers = function() {
 // server is up and running.
 exports.registerHttpHandlers = function(app) {
 
+  // Direct output to ceiling
+  app.get('/blastoff', function(request, response){
+    grid.set_output_to_ceiling(false);
+    var result = {};
+    response.jsonp(result);
+  });
+  app.get('/blaston', function(request, response){
+    grid.set_output_to_ceiling(true);
+    var result = {};
+    response.jsonp(result);
+  });
+
   // Sources
   app.get('/sources', function(request, response){
     var result = api.source.list();
@@ -355,6 +379,21 @@ exports.registerHttpHandlers = function(app) {
     var y = request.params.y;
     var result = api.grid.getxy(x, y);
     response.jsonp(result);
+
+  });
+  app.put('/output/display', function(request, response){
+
+    var display_toggle = request.params.display;
+      
+    //console.log("api.js /mixer/channel/:id");
+    //console.log(channel_options);
+ 
+    var result = api.output.update(display_toggle);
+
+    console.log(result);
+      
+    if(!result.error) response.sendStatus(204);
+    else response.status(404).jsonp(errorResponse(404, result.error));
 
   });
 
