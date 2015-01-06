@@ -3,7 +3,6 @@ var util = require('util');
 var Source = require('../source');
 var Canvas = require('canvas');
 var canvas = new Canvas(60,48);
-var fs = require('fs');
 
 var NAME = path.basename(__filename, '.js'); // Our unique name
 
@@ -26,8 +25,6 @@ util.inherits(ColorShapes, Source);
 function randomI(low, high) {
 	return Math.floor((Math.random() * (high + 1 - low)) + low);
 }
-
-var countMe = 0;
 
 ColorShapes.prototype.step = function() {
 	// get a random color 
@@ -66,11 +63,6 @@ ColorShapes.prototype.step = function() {
 // Return js object containing all params and their types
 ColorShapes.options_spec = function() {
 	return [
-	        {
-	        	'name': 'color',
-	        	'type': 'color',
-	        	'default': [255,0,0]
-	        },
 	        {
 	        	'name': 'min_width',
 	        	'type': 'integer',
