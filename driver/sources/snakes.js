@@ -8,107 +8,229 @@ var NAME = path.basename(__filename, '.js'); // Our unique name
 //
 // options should be step time and min and max size.
 //
-
-var Snake = {
-		body: [],
-		direction: 'Forward',
-		color: [128, 128, 128]
-}
-
-function Snakes(grid, options)
-{
-  options = options || {};
-  Snakes.super_.call(this, NAME, grid, options);
-
-  this.body = [];
-  var segment = {
-		  x: 20,
-		  y: 20,
-		  food: 0,
-		  direction: 0, // 0 - forward, 1 - left, 2 - right
-  };
-  
-  // make the work 3 segments long
-  this.body.push(segment);
-  segment.x++;
-  this.body.push(segment);
-  segment.x++;
-  this.body.push(segment);
-
-  this.map = []; // this is 60 * 48
-}
-
-// Set up inheritance from Source
-util.inherits(Snakes, Source);
-
 function randomI(low, high) {
 	return Math.floor((Math.random() * (high + 1 - low)) + low);
 }
 
-Snakes.prototype.step = function() {
-	// get a random color 
-	var color = [];
-	var width = randomI(this.options.min_width, this.options.max_width);
-	var height = randomI(this.options.min_height, this.options.max_height);
-	var x = randomI(0, 60 - width);
-	var y = randomI(0, 48 - height);
-	var shape;
+function randomXY()
+{
+	var xy = {
+			x: randomI(0,60),
+			y: randomI(0,48)
+	};
 	
-	this.ctx.fillStyle = 'rgba(' + randomI(0, 255) + ',' + randomI(0, 255) + ',' + 
-		randomI(0, 255) + ',1)';
-	if(this.options.shape === 'random'){
-		if(randomI(0,1) === 1){
-			shape = 'circle';
-		} else {
-			shape = 'rectangle';
-		}
-	} else {
-		shape = this.options.shape;
-	}
-	if(shape === 'rectangle'){
-		this.ctx.fillRect(x, y, width, height);
-	} else if (shape === 'circle'){
-		this.ctx.beginPath();
-		this.ctx.arc(x, y, width / 2, 0, 2 * Math.PI, 'false');
-		this.ctx.fill();
-	}
-	
-	this.grid.set(this.ctx.getImageData(0,0,60,48), 'xy', 'false');
+	return xy;
+}
 
+function generateFood(map)
+{
+	var xy;
+	
+	while(1)
+	{
+		xy = randomXY();
+		
+		var index = (xy.y * 60) + xy.x;
+		
+		if( typeof map[index] === 'undefined' ||
+			map[index] == 'empty' )
+		{
+			// we can place the food here
+			
+			map[(xy.y * 60) + xy.x] = 'food';
+			return xy;
+		}
+	}
+};
+
+function DrawSnake(){
+	var self = this;
+	  this.body.forEach(function(element){
+		  self.map[(element.y * 60) + element.x] = 'S';
+	  })
+};
+
+function Snakes(grid, options) {
+	options = options || {};
+	Snakes.super_.call(this, NAME, grid, options);
+
+	this.body = [];
+
+	this.drawSnake = DrawSnake;
+
+	this.unDrawSnake = function() {
+		var self = this;
+		this.body.forEach(function(element) {
+			self.map[(element.y * 60) + element.x] = 'empty';
+		})
+	};
+
+	this.moveSnake = function() {
+		var curDir;
+		var x = 0;
+		var y = 0;
+
+		// erase the snake first
+
+		this.unDrawSnake();
+
+		// now look to see if there is food, (grow) and move all segments except
+		// the head
+
+		for (var i = (this.body.length - 1); i >= 0; i--) {
+			// is there food at the end
+
+			if (this.body[i].food) {
+				if (i === (this.body.length - 1)) {
+					// grow by one segment
+
+					var seg = this.body[i];
+					this.body.push(seg);
+				}
+			}
+
+			if (i != 0) {
+				this.body[i].food = this.body[i - 1].food;
+				this.body[i].x = this.body[i - 1].x;
+				this.body[i].y = this.body[i - 1].y;
+			} else {
+				// what is the current direction
+				if (this.body[0].x === this.body[1].x) {
+					// we must be moving up or down
+
+					if (this.body[0].y > this.body[1].y) {
+						// we are heading down
+						x = 1;
+					} else {
+						x = -1;
+					}
+				} else {
+					// we must be moving screen left or screen right
+
+					if (this.body[0].x > this.body[1].x) {
+						y = 1;
+					} else {
+						y = -1;
+					}
+				}
+			}
+		}
+
+		// now that we know the screen direction the snake is moving, see where
+		// we want to go.
+
+		if (this.body[0].direction === 1) {
+			// we want to turn right
+
+			if (x === 0) {
+				x = -y;
+				y = 0;
+			} else {
+				y = x;
+				x = 0;
+			}
+		} else if (this.body[0].direction === 2) {
+			// we want to turn left
+
+			if (x === 0) {
+				x = y;
+				y = 0;
+			} else {
+				y = -x;
+				x = 0;
+			}
+		}
+
+		// after we change direction, go forward
+
+		this.body[0].direction = 0;
+
+		// actually move the head
+
+		this.body[0].x += x;
+		if (this.body[0].x > 60) {
+			this.body.x = 0;
+		} else if (this.body[0].x < 0) {
+			this.body.x = 59;
+		}
+
+		this.body[0].y += y;
+		if (this.body[0].y > 48) {
+			this.body.y = 0;
+		} else if (this.body[0].y < 0) {
+			this.body.x = 47;
+		}
+
+		// redraw in the map
+
+		this.drawSnake();
+	};
+
+	for (var i = 0; i < 3; i++) {
+		var segment = new Object();
+
+		segment = {
+			x : 20 + i,
+			y : 20,
+			food : 0,
+			direction : 0, // 0 - forward, 1 - left, 2 - right
+		};
+
+		this.body.push(segment);
+	};
+
+	this.map = []; // this is 60 * 48
+	this.drawSnake();
+	generateFood(this.map); // place a piece of food
+};
+
+// Set up inheritance from Source
+  util.inherits(Snakes, Source);
+
+  function randomI(low, high) {
+	  return Math.floor((Math.random() * (high + 1 - low)) + low);
+  }
+
+Snakes.prototype.step = function() {
+	// get a random color
+	
+	var self = this;
+
+	this.count++;
+	if( this.count > 40 ){
+		this.count = 0;
+	}
+	
+	if(this.count === 0){
+		this.body[0].direction = 2;
+	};
+	
+	this.moveSnake();
+
+	// clear our grid
+	this.grid.setGridColor([0,0,0]);
+	
+	this.map.forEach(function(element, index){
+		if( element == 'food' ){
+			self.grid.setPixelColor(index % 60, Math.floor(index / 60) , [0,255,0]);
+			console.log("drawing food at X:" + index % 60 + " Y: " + Math.floor(index / 60));
+		} else if( element == 'S'){
+			self.grid.setPixelColor(index % 60, Math.floor(index / 60), self.options.color);
+			console.log("drawing S:" + " at X: " + index % 60 + " Y: " + Math.floor(index / 60));
+		}
+	});
 	// We changed the grid
-  return true;
+	return true;
 };
 
 // Return js object containing all params and their types
 Snakes.options_spec = function() {
 	return [
 	        {
-	        	'name': 'min_width',
-	        	'type': 'integer',
-	        	'default': 2
-	        },
-	        {
-	        	'name': 'max_width',
-	        	'type': 'integer',
-	        	'default': 10
-	        },
-	        {
-	        	'name': 'min_height',
-	        	'type': 'integer',
-	        	'default': 2
-	        },
-	        {
-	        	'name': 'max_height',
-	        	'type': 'integer',
-	        	'default': 10
-	        },
-	        {
-	            'name': 'shape',
-	            'type': 'select',
-	            'default': 'random',
-	            'choices': ['circle', 'rectangle', 'random']
+	            'name': 'color',
+	            'type': 'color',
+	            'default': [255,0,0]
 	          }
-
 	        ].concat(Source.options_spec());
 }
 
