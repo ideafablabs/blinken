@@ -54,6 +54,7 @@ function Snakes(grid, options) {
 	options = options || {};
 	Snakes.super_.call(this, NAME, grid, options);
 
+	this.count = 0;
 	this.body = [];
 
 	this.drawSnake = DrawSnake;
@@ -118,10 +119,10 @@ function Snakes(grid, options) {
 
 		// now that we know the screen direction the snake is moving, see where
 		// we want to go.
-
+//		console.log("Body 0 direction: " + this.body[0].direction);
 		if (this.body[0].direction === 1) {
 			// we want to turn right
-
+			console.log("Turning Right X: " + x + " Y: " + y);
 			if (x === 0) {
 				x = -y;
 				y = 0;
@@ -131,7 +132,7 @@ function Snakes(grid, options) {
 			}
 		} else if (this.body[0].direction === 2) {
 			// we want to turn left
-
+			console.log("Turning Left X: " + x + " Y: " + y);
 			if (x === 0) {
 				x = y;
 				y = 0;
@@ -141,6 +142,8 @@ function Snakes(grid, options) {
 			}
 		}
 
+		console.log("x: " + x + " y: " + y);
+		
 		// after we change direction, go forward
 
 		this.body[0].direction = 0;
@@ -202,6 +205,7 @@ Snakes.prototype.step = function() {
 	}
 	
 	if(this.count === 0){
+		console.log("count = " + this.count + " Setting direction this:" + this);
 		this.body[0].direction = 2;
 	};
 	
@@ -213,10 +217,10 @@ Snakes.prototype.step = function() {
 	this.map.forEach(function(element, index){
 		if( element == 'food' ){
 			self.grid.setPixelColor(index % 60, Math.floor(index / 60) , [0,255,0]);
-			console.log("drawing food at X:" + index % 60 + " Y: " + Math.floor(index / 60));
+//			console.log("drawing food at X:" + index % 60 + " Y: " + Math.floor(index / 60));
 		} else if( element == 'S'){
 			self.grid.setPixelColor(index % 60, Math.floor(index / 60), self.options.color);
-			console.log("drawing S:" + " at X: " + index % 60 + " Y: " + Math.floor(index / 60));
+//			console.log("drawing S:" + " at X: " + index % 60 + " Y: " + Math.floor(index / 60));
 		}
 	});
 	// We changed the grid
