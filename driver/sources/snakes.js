@@ -87,21 +87,22 @@ function CheckCollision(){
 		}
 		
 		// check each head
-		for(var innerLoop = loop + 1; innerLoop < this.snakes.length; innerLoop++){
+		for(var innerLoop = 0; innerLoop < this.snakes.length; innerLoop++){
 			var inSnake = this.snakes[innerLoop];
 			
 			if( inSnake.state !== 'ALIVE'){
 				continue;
 			}
-			
-			for(var seg = 0; seg < inSnake.body.length ; seg++){
+
+			// we don't check the head on ourself
+			for(var seg = (innerLoop == loop) ? 1 : 0; seg < inSnake.body.length ; seg++){
 				if((chSnake.body[0].x === inSnake.body[seg].x) && 
 						(chSnake.body[0].y === inSnake.body[seg].y)){
 					// we have collided, we are dead
 					chSnake.state = 'DEAD';
-					chSnake.color[0] /= 4;
-					chSnake.color[1] /= 4;
-					chSnake.color[1] /= 4;
+					chSnake.color[0] /= 3;
+					chSnake.color[1] /= 3;
+					chSnake.color[2] /= 3;
 					break;
 				}
 			}
