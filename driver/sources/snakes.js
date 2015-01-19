@@ -100,9 +100,9 @@ function CheckCollision(){
 						(chSnake.body[0].y === inSnake.body[seg].y)){
 					// we have collided, we are dead
 					chSnake.state = 'DEAD';
-					chSnake.color[0] /= 3;
-					chSnake.color[1] /= 3;
-					chSnake.color[2] /= 3;
+					chSnake.color[0] /= this.options.deathScale;
+					chSnake.color[1] /= this.options.deathScale;
+					chSnake.color[2] /= this.options.deathScale;
 					break;
 				}
 			}
@@ -375,6 +375,10 @@ Snakes.options_spec = function() {
 		'name' : 'numSnakes',
 		'type' : 'integer',
 		'default' : 2
+	},  {
+		'name' : 'deathScale',
+		'type' : 'integer',
+		'default' : 10
 	},  {
 		'name' : 'numSegments0',
 		'type' : 'integer',
