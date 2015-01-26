@@ -42,28 +42,54 @@ Grid.prototype.xy = function(i) {
   return {
     x: i % this.num_pixels_x,
     y: Math.floor(i / this.num_pixels_x)
-  }
+  };
 };
 
 Grid.prototype.validateGrid = function(color_grid){
   //Validate a color array, notify user/dev if wrong.
   return true;
+};
+
+function setMultiArray(grid, color_grid)
+{
+	for(var x=0; x<grid.num_pixels_x; x++){
+		for(var y=0; y<grid.num_pixels_y; y++) {
+			var index = grid.index(x,y);
+			if((index !== null) && (x < color_grid.length) && (y < color_grid[x].length) ) {
+				grid.pixels[index*3] = color_grid[x][y][0];
+				grid.pixels[(index*3)+1] = color_grid[x][y][1];
+				grid.pixels[(index*3)+2] = color_grid[x][y][2];
+			}  
+		}
+	}
+}
+
+// this all assumes that the color_grid is the same size as the grid in pixels
+function setImageData(grid, color_grid){
+	for(var x=0; x<grid.num_pixels_x; x++){
+		for(var y=0; y<grid.num_pixels_y; y++) {
+			var index = grid.index(x,y);
+			if((index !== null) && ((index * 4) < color_grid.length)) {
+				grid.pixels[index*3] = color_grid[index * 4];
+				grid.pixels[(index*3)+1] = color_grid[(index * 4) + 1];
+				grid.pixels[(index*3)+2] = color_grid[(index * 4) + 2];				
+			}
+		}
+	}
 }
 
 Grid.prototype.set = function(color_grid, mode, strict){
   switch(mode) {
 
     case "xy":
-      for(var x=0; x<this.num_pixels_x; x++){
-        for(var y=0; y<this.num_pixels_y; y++) {
-          var index = this.index(x,y);
-          if(index != null) {
-            this.pixels[index*3] = color_grid[x][y][0];
-            this.pixels[(index*3)+1] = color_grid[x][y][1];
-            this.pixels[(index*3)+2] = color_grid[x][y][2];
-          }  
-        }
-      }
+    	if(Array.isArray(color_grid)){
+    		if(Array.isArray(color_grid[0])){
+    			setMultiArray(this, color_grid);
+    		}
+    	}
+    	else if(color_grid.constructor.name === "ImageData"){
+    		setImageData(this, color_grid.data);
+    	}
     break;
 
     case "logical":
