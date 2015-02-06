@@ -39,7 +39,7 @@ function getOffset(direction){
 		offset.x = -1;
 		break;
 	case "RIGHT":
-		offset.x = -1;
+		offset.x = 1;
 		break;
 	}
 	
@@ -57,7 +57,7 @@ function GenerateFood()
 		var index = (xy.y * this.grid.num_pixels_x) + xy.x;
 		
 		if( typeof this.map[index] === 'undefined' ||
-			this.map[index] == 'empty' )
+			this.map[index] === 'empty' )
 		{
 			// we can place the food here
 			
@@ -65,7 +65,7 @@ function GenerateFood()
 			return xy;
 		}
 	}
-};
+}
 
 function DrawSnake(parent){
 //	console.log("Draw snake this = " + util.inspect(this, false, null));
@@ -73,8 +73,20 @@ function DrawSnake(parent){
 	var self = this;
 	  this.body.forEach(function(element){
 		  parent.map[(element.y * parent.grid.num_pixels_x) + element.x] = self.id;
-	  })
-};
+	  });
+}
+
+function FindFreeSnake(){
+	// look to see if any of the snakes are not being controlled by a socket
+	
+	for(var loop = 0; loop < this.snakes.length ; loop++){
+		if(this.snakes[loop].socket === undefined && this.snakes[loop].state === 'ALIVE'){
+			return(this.snakes[loop]);
+		}
+	}
+	
+	return undefined;
+}
 
 function CheckCollision(){
 	var loop;
@@ -82,6 +94,11 @@ function CheckCollision(){
 	for(loop = 0; loop < this.snakes.length; loop++){
 		var chSnake = this.snakes[loop];
 
+		if( chSnake.state === 'DIED'){
+			chSnake.state = 'DEAD'; // we did die, now we are dead
+			continue;
+		}
+		
 		if( chSnake.state !== 'ALIVE'){
 			continue;
 		}
@@ -95,24 +112,85 @@ function CheckCollision(){
 			}
 
 			// we don't check the head on ourself
-			for(var seg = (innerLoop == loop) ? 1 : 0; seg < inSnake.body.length ; seg++){
+			for(var seg = (innerLoop === loop) ? 1 : 0; seg < inSnake.body.length ; seg++){
 				if((chSnake.body[0].x === inSnake.body[seg].x) && 
 						(chSnake.body[0].y === inSnake.body[seg].y)){
 					// we have collided, we are dead
-					chSnake.state = 'DEAD';
-					chSnake.color[0] /= this.options.deathScale;
-					chSnake.color[1] /= this.options.deathScale;
-					chSnake.color[2] /= this.options.deathScale;
+					chSnake.die(this.options.deathScale);
 					break;
 				}
 			}
 			
-			if(chSnake.state === 'DEAD'){
+			if(chSnake.state !== 'ALIVE'){
 				break;
 			}
 		}
 	}
-};
+}
+
+function CheckWalls(snake, offset){
+	// get the position of the snake head, this is the only thing that can hit a wall.
+	
+	var snakeHead = {
+			x: snake.body[0].x + offset.x,
+			y: snake.body[0].y + offset.y
+	};
+	
+	if (this.options.walls === 'TRUE') {
+		// report if we would go past a wall
+		if (snakeHead.x >= this.grid.num_pixels_x) {
+			return '+X';
+		} else if (snakeHead.x < 0) {
+			return '-X';
+		}
+
+		if (snakeHead.y >= this.grid.num_pixels_y) {
+			return '+Y';
+		} else if (snakeHead.y < 0) {
+			return '-Y';
+		}
+	}
+	
+	return 'NONE';
+}
+
+function changeDirection(turn, direction){
+	var newDirection = direction; // maybe no change
+	
+	if (turn === "RIGHT"){
+		switch(direction){
+			case "UP":
+				newDirection = "RIGHT";
+				break;
+			case "DOWN":
+				newDirection = "LEFT";
+				break;
+			case "RIGHT":
+				newDirection = "DOWN";
+				break;
+			case "LEFT":
+				newDirection = "UP";
+				break;
+		}
+	} else if (turn === "LEFT"){
+		switch(direction){
+		case "UP":
+			newDirection = "LEFT";
+			break;
+		case "DOWN":
+			newDirection = "RIGHT";
+			break;
+		case "RIGHT":
+			newDirection = "UP";
+			break;
+		case "LEFT":
+			newDirection = "DOWN";
+			break;
+		}
+	}
+	
+	return newDirection;
+}
 
 function MoveSnake(parent) {
 	var curDir;
@@ -123,53 +201,75 @@ function MoveSnake(parent) {
 
 	this.unDrawSnake();
 
-	// now look to see if there is food, (grow) and move all segments except
-	// the head
+	var lastTurn = this.turn; // keep track for robot snakes.
 
-	if (this.turn == "RIGHT"){
-		switch(this.direction){
-			case "UP":
-				this.direction = "RIGHT";
-				break;
-			case "DOWN":
-				this.direction = "LEFT";
-				break;
-			case "RIGHT":
-				this.direction = "DOWN";
-				break;
-			case "LEFT":
-				this.direction = "UP";
-				break;
-		}
-	} else if (this.turn == "LEFT"){
-		switch(this.direction){
-		case "UP":
-			this.direction = "LEFT";
-			break;
-		case "DOWN":
-			this.direction = "RIGHT";
-			break;
-		case "RIGHT":
-			this.direction = "UP";
-			break;
-		case "LEFT":
-			this.direction = "DOWN";
-			break;
-		}
-	}
-
-	this.turn = "NONE";
+	// do any turning 
 	
-	offset = getOffset(this.direction);
+	var newDirection = changeDirection(this.turn, this.direction);
+	
+	this.turn = 'NONE';
+	
+	// where would the snake be?
+	
+	var offset = getOffset(newDirection);
+	
+	// handle the robot snakes and the wall here 
+	
+	if (this.socket === undefined){
+		var whichWall;
+		
+		if ((whichWall = parent.checkWalls(this, offset)) !== 'NONE'){
+//			console.log("snake " + this.id + " hit a wall " + whichWall + " last Turn " + lastTurn +
+//					" offset x:" + offset.x +  " y:" + offset.y + " head.x:" +
+//					this.body[0].x + " y:" + this.body[0].y + " direction " + newDirection);
+			
+			if (lastTurn === 'NONE'){
+				// we where just going along and out popped this wall
+				// turn to save ourselves
+				
+				switch(whichWall){
+				case '+X':  // going right or left , we need to go up or down depends on if we are
+				case '-X':  // in the bottom or top
+					if (this.body[0].y > (parent.grid.num_pixels_y/2)){
+						newDirection = 'UP';
+					} else {
+						newDirection = 'DOWN';
+					}
+					break;
+				case '+Y':  // going up or dowwn , we need to go left or right depends on if we are
+				case '-Y':  // in the right or left. go opposite
+					if (this.body[0].x > (parent.grid.num_pixels_x/2)){
+						newDirection = 'LEFT';
+					} else {
+						newDirection = 'RIGHT';
+					}
+					break;
+				}
+			} else {
+				// we were trying to turn and the wall got in our way, turn the other way
+				
+				newDirection = changeDirection(lastTurn === 'RIGHT' ? 'LEFT' : 'RIGHT', this.direction);
+			}
+			
+//			console.log("Our new direction = ", newDirection);
+
+			offset = getOffset(newDirection);
+		}
+		
+		// we are now going a direction that shouldn't hurt
+	}
+	
+	this.direction = newDirection;
 	
 	for (var i = (this.body.length - 1); i > 0; i--) {
 		// is there food at the end
 
-		if (this.body[i].food === 1) {
+		if (this.body[i].food === true) {
+			// if this is the last segment
 			if (i === (this.body.length - 1)) {
 				// grow by one segment
 
-				var seg = new Object();
+				var seg = {};
 				seg.x = this.body[i].x;
 				seg.y = this.body[i].y;
 				
@@ -183,22 +283,29 @@ function MoveSnake(parent) {
 	}
 
 	// actually move the head
-	 
+	var lastXy = {x: this.body[0].x, y: this.body[0].y};
+	
 	this.body[0].x += offset.x;
 	this.body[0].y += offset.y;
 
-	// wrap any pieces that went off screen
-	
-	if (this.body[0].x > parent.grid.num_pixels_x) {
-		this.body[0].x = 0;
-	} else if (this.body[0].x < 0) {
-		this.body[0].x = parent.grid.num_pixels_x - 1;
-	}
+	if (parent.options.walls === 'FALSE') {
+		// wrap any pieces that went off screen
 
-	if (this.body[0].y > parent.grid.num_pixels_y) {
-		this.body[0].y = 0;
-	} else if (this.body[0].y < 0) {
-		this.body[0].y = parent.grid.num_pixels_y - 1;
+		if (this.body[0].x >= parent.grid.num_pixels_x) {
+			this.body[0].x = 0;
+		} else if (this.body[0].x < 0) {
+			this.body[0].x = parent.grid.num_pixels_x - 1;
+		}
+
+		if (this.body[0].y >= parent.grid.num_pixels_y) {
+			this.body[0].y = 0;
+		} else if (this.body[0].y < 0) {
+			this.body[0].y = parent.grid.num_pixels_y - 1;
+		}
+	} else {
+		if (parent.checkWalls(this, {x:0, y:0}) !== 'NONE'){
+				this.die(parent.options.deathScale);
+		}
 	}
 
 	// see if we ate the food
@@ -206,14 +313,54 @@ function MoveSnake(parent) {
 	var index = this.body[0].y * parent.grid.num_pixels_x + this.body[0].x;
 	
 	if (parent.map[index] === 'food'){
-		this.body[0].food = 1;
+		this.body[0].food = true;
 		parent.generateFood();
 	} else {
-		this.body[0].food = 0;
+		this.body[0].food = false;
 	}
-};
+}
 
-function snake(numSegments, color, start, direction, id)
+function ReInit(direction, numSegments, start){
+	this.state = 'ALIVE';
+
+	// remove all segments
+	
+	this.body.length = 0;
+	var offset = getOffset(this.direction);
+
+	// to first place the snake we need these inverted
+
+	offset.x = -offset.x;
+	offset.y = -offset.y;
+
+	for (var i = 0; i < numSegments; i++) {
+		var segment = {};
+
+		segment = {
+				x : start.x + offset.x,
+				y : start.y + offset.y,
+				food : false
+		};
+
+		this.body.push(segment);
+	}
+
+//	this.drawSnake(this);
+}
+
+function Die(scale){
+	this.state = 'DIED';  // have a died state for one step.
+//	console.log("scale = " + scale);
+	this.color[0] /= scale;
+	this.color[1] /= scale;
+	this.color[2] /= scale;
+	
+	if (this.socket !== undefined){
+		this.socket.emit('died', {id: this.id, color: this.color});
+	}
+}
+
+function snake(numSegments, color, start, direction, id, socket)
 {
 	var parent = this;
 	
@@ -221,6 +368,8 @@ function snake(numSegments, color, start, direction, id)
 			body: [],
 			drawSnake: DrawSnake,
 			moveSnake: MoveSnake,
+			die: Die,
+			reInit: ReInit,
 			unDrawSnake: function() {
 				var self = this;
 				this.body.forEach(function(element) {
@@ -239,48 +388,86 @@ function snake(numSegments, color, start, direction, id)
 			turn: "NONE",
 			color: color,
 			state: "ALIVE",
-			id: id
+			id: id,
+			socket: socket
 	};
 
-	// create the initial snake
-	// get the offsets given the direction
-	
-	offset = getOffset(direction);
-
-	// to first place the snake we need these inverted
-
-	offset.x = -offset.x;
-	offset.y = -offset.y;
-
-	for (var i = 0; i < numSegments; i++) {
-		var segment = new Object();
-
-		segment = {
-				x : start.x + offset.x,
-				y : start.y + offset.y,
-				food : 0
-		};
-
-		ssss.body.push(segment);
-	};
-
-	ssss.drawSnake(this);
-
+	ssss.reInit(direction, numSegments, start);
+	ssss.drawSnake(parent);
 	return ssss;
+}
+
+function socketError(socket, errMsg){
+	socket.emit('error', {text: errMsg});
 }
 
 function Snakes(grid, options) {
 	options = options || {};
 	Snakes.super_.call(this, NAME, grid, options);
-
+	var self = this;
+	
 	this.count = 0;
-	this.mode = "DEMO";
-	this.generateFood = GenerateFood,
+	this.generateFood = GenerateFood;
 	this.checkCollision = CheckCollision;
+	this.findFreeSnake = FindFreeSnake;
+	this.checkWalls = CheckWalls;
+	
 	this.snakes = []; // we may have a few snakes
 	this.map = []; // this is grid.num_pixels_x * this.grid.num_pixels_y
+	this.connections = 0;
+	
 
-	// generate snakes
+	io.of('/snakes').on('connection', function(socket) {
+		console.log("Connected to snake");
+		
+		socket.on('disconnect', function() {
+			console.log("disconnected from snake");
+
+			// for sure at this point if this connection owns a snake we
+			// should kill it now
+			if (socket.snake !== undefined) {
+				socket.snake.socket = undefined;
+			}
+		});
+
+		socket.on('attach', function() {
+			console.log("got an attach");
+			socket.snake = self.findFreeSnake();
+			if (socket.snake !== undefined) {
+				socket.snake.socket = socket;
+				console.log("attached to snake " + socket.snake.id);
+				socket.emit('snake', {id: socket.snake.id, color: socket.snake.color});
+			} else {
+				console.log("cannot attach to snake");
+				socket.emit('errorMsg', {text: 'No Snake Available'});
+//				socketError(socket, 'No Snake Available');
+			}
+		});
+
+		socket.on('detach', function() {
+			if (socket.snake !== undefined){
+				console.log('snake ' + socket.snake.id + ' detached from');
+				socket.snake.socket = undefined;
+				socket.snake = undefined;
+			}
+		});
+		
+
+		socket.on('turn', function(dir) {
+//			console.log("We got turn info " + dir.turn);
+			
+			// set the direction for the next move
+			if ((dir.turn === 'LEFT') || (dir.turn === 'RIGHT')) {
+				socket.snake.turn = dir.turn;
+			} else {
+				console.log("bad turn info from ip-"
+						+ socket.request.connection.remoteAddress)
+			}
+		});
+	});
+	  
+	// generate snakes automatic snakes for when no-one is connected
+	var tmpSock;
 	var loop;
 	
 	for(loop = 0; loop < this.options.numSnakes ; loop++){
@@ -288,7 +475,7 @@ function Snakes(grid, options) {
 		
 		this.snakes.push(snake.call(this, this.options['numSegments'+loop],
 					this.options['color'+loop], xy,
-					this.options['direction'+loop], loop));
+					this.options['direction'+loop], loop, tmpSock));
 	}
 	
 	// generate food
@@ -296,7 +483,7 @@ function Snakes(grid, options) {
 	for(loop = 0 ; loop < this.options.amountFood ; loop++){
 		this.generateFood(); // place a piece of food
 	}
-};
+}
 
 // Set up inheritance from Source
   util.inherits(Snakes, Source);
@@ -305,58 +492,98 @@ function Snakes(grid, options) {
 	  return Math.floor((Math.random() * (high + 1 - low)) + low);
   }
 
-Snakes.prototype.step = function() {
-	// get a random color
-	
-	var self = this;
+var timeGameOver = 0;
 
-	// see if we want the snakes to turn
+Snakes.prototype.step = function() {
+	var self = this;
+	var loop;
+	var gameOver = 'TRUE'; // assume it is over, if there is any snake alive it isn't
+
+	for (loop = 0; loop < this.snakes.length; loop++) {
+		// see if the game is over
+		if (this.snakes[loop].state !== 'ALIVE') {
+			if (this.snakes[loop].state === 'DIED'){
+				console.log("snake " + loop + " died");
+				// change state to dead
+				this.snakes[loop].state = 'DEAD';
+			}
+			
+			// don't clear the flag
+		} else {
+			// game can't be over, we have a live snake
+
+			gameOver = 'FALSE';
+
+			// if there are any LIVE snakes not connected to a socket
+			// then we can control them.
+			
+			if (this.snakes[loop].socket === undefined) {
+				switch (randomI(0, 15)) {
+				case 0:
+					this.snakes[loop].turn = 'RIGHT';
+					break;
+				case 1:
+					this.snakes[loop].turn = 'LEFT';
+					break;
+				}
+			}
+		}
+	}
+
+//	console.log("gameOver " + gameOver);
 	
-	for(var loop = 0 ; loop < this.snakes.length ; loop++){
-		switch(randomI(0,15)){
-			case 0:
-				this.snakes[loop].turn = 'RIGHT';
-				break;
-			case 1:
-				this.snakes[loop].turn = 'LEFT';
-				break;
+	if (gameOver === 'FALSE') {
+		// move all the snakes
+
+		for (loop = 0; loop < this.snakes.length; loop++) {
+			if (this.snakes[loop].state === 'ALIVE') {
+				this.snakes[loop].moveSnake(this);
+			}
+		}
+
+		// check to see if anything collided
+
+		this.checkCollision();
+
+		// redraw in the map
+		for (loop = 0; loop < this.snakes.length; loop++) {
+			this.snakes[loop].drawSnake(this);
+		}
+
+	} else {
+		timeGameOver++;
+		
+		if (timeGameOver === 100){
+			console.log("timeGameOver " + timeGameOver);
+//			timeGameOver = 0;
+			// reinit
+//			self.snakes.forEach(function(element, index){
+//				var xy = { x: self.options['startx'+index], y: self.options['starty'+index] };
+				
+//				element.reInit(element.direction, self.options['numSegments'+index], xy);
+//				element.color = self.options['color'+index];
+//				element.drawSnake(self);
+//			});
 		}
 	}
 	
-	// move all the snakes
-	
-	for(var loop = 0 ; loop < this.snakes.length ; loop++){
-		if(this.snakes[loop].state === 'ALIVE'){
-			this.snakes[loop].moveSnake(this);
-		}
-	}
-	
-	// check to see if anything collided
-	
-	this.checkCollision();
-	
-	// redraw in the map
-	for(var loop = 0 ; loop < this.snakes.length ; loop++){
-		this.snakes[loop].drawSnake(this);
-	}
 	
 	// clear our grid
-	this.grid.setGridColor([0,0,0]);
-	
-	var self = this;
+	this.grid.setGridColor([ 0, 0, 0 ]);
 
 	// actually write to the grid
-	
-	this.map.forEach(function(element, index){
+
+	this.map.forEach(function(element, index) {
 		var width = self.grid.num_pixels_x;
-		if( element == 'food' ){
-			self.grid.setPixelColor(index % width, Math.floor(index / width) , self.options.foodColor);
-		} else if( element >= 0 && element < self.snakes.length){
-			self.grid.setPixelColor(index % width, Math.floor(index / width ),
-						self.snakes[element].color);
-//			console.log("drawing S" + element + ": at X: " + index % width + " Y: " + Math.floor(index / width));
+		if (element === 'food') {
+			self.grid.setPixelColor(index % width, Math.floor(index / width), self.options.foodColor);
+		} else if (element >= 0 && element < self.snakes.length) {
+			self.grid.setPixelColor(index % width, Math.floor(index / width), self.snakes[element].color);
+			// console.log("drawing S" + element + ": at X: " + index %
+			// width + " Y: " + Math.floor(index / width));
 		}
 	});
+
 	// We changed the grid
 	return true;
 };
@@ -364,6 +591,14 @@ Snakes.prototype.step = function() {
 // Return js object containing all params and their types
 Snakes.options_spec = function() {
 	return [ {
+		'name' : 'walls',
+		'type' : 'string',
+		'default' : 'FALSE'
+	},  {
+		'name' : 'deathScale',
+		'type' : 'integer',
+		'default' : 3
+	},  {
 		'name' : 'foodColor',
 		'type' : 'color',
 		'default' : [ 0, 255, 0 ]
@@ -375,10 +610,6 @@ Snakes.options_spec = function() {
 		'name' : 'numSnakes',
 		'type' : 'integer',
 		'default' : 2
-	},  {
-		'name' : 'deathScale',
-		'type' : 'integer',
-		'default' : 10
 	},  {
 		'name' : 'numSegments0',
 		'type' : 'integer',
