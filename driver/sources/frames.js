@@ -49,18 +49,16 @@ Frames.prototype.step = function() {
   var frame = this.options.frame;
   //console.log("frames.js step");
   //console.log(frame); 
-    
-  for (var i = 0; i < this.grid.num_pixels; i++) {
-    var xy = this.grid.xy(i);
-    if(xy.x < frame.length) {
-      if(xy.y < frame[xy.x].length) {
-        this.grid.setPixelColor(xy.x, xy.y, [ frame[xy.x][xy.y][0], frame[xy.x][xy.y][1], frame[xy.x][xy.y][2] ]);
-      }
-    }
-    //if(frame[i*3] != 0) {
-    //    console.log(frame[i*3]);
-    //}
-  }
+  
+  this.grid.set(frame,"xy","false");
+//  for (var i = 0; i < this.grid.num_pixels; i++) {
+//    var xy = this.grid.xy(i);
+//    if(xy.x < frame.length) {
+//      if(xy.y < frame[xy.x].length) {
+//        this.grid.setPixelColor(xy.x, xy.y, [ frame[xy.x][xy.y][0], frame[xy.x][xy.y][1], frame[xy.x][xy.y][2] ]);
+//      }
+//    }
+//  }
   return true;
 };
 
