@@ -1,6 +1,6 @@
 var path = require('path');
 var util = require('util');
-var Source = require('../source');
+var Game = require('../game');
 
 var NAME = path.basename(__filename, '.js'); // Our unique name
 
@@ -18,7 +18,6 @@ function randomXY()
 		x: randomI(0,60),
 		y: randomI(0,48)
 	};
-
 }
 
 function randomDirection(){
@@ -128,9 +127,7 @@ function findFreeSnake(){
 
 	for(var loop = 0; loop < this.snakes.length ; loop++){
 		if(this.snakes[loop].socket === undefined && ((this.snakes[loop].state === 'ALIVE') || (this.snakes[loop].state === 'DEAD'))){
-		    if(this.snakes[loop].state === 'DEAD') {
-                this.snakes[loop].reInit(randomDirection(), this.options.numSegments, randomXY());
-            }
+			this.snakes[loop].reInit(randomDirection(), this.options.numSegments, randomXY());
 			return(this.snakes[loop]);
 		}
 	}
@@ -407,9 +404,12 @@ function ReInit(direction, numSegments, start){
 	for (var i = 0; i < numSegments; i++) {
 		var segment = {};
 
+		start.x += offset.x;
+		start.y += offset.y;
+
 		segment = {
-				x : start.x + offset.x,
-				y : start.y + offset.y,
+				x : start.x,
+				y : start.y,
 				food : false
 		};
 
@@ -472,6 +472,60 @@ function socketError(socket, errMsg){
 	socket.emit('error', {text: errMsg});
 }
 
+function drawWaiting()
+{
+	var self = this;
+
+	// clear our grid
+	this.grid.setGridColor([ 0, 0, 0 ]);
+
+	// write press play
+	this.grid.setColor([0, 200, 0]);
+
+	this.grid.setCursor(25, 10);
+
+	this.grid.print("Press");
+
+	this.grid.setCursor(25, 20);
+	this.grid.print("Start");
+
+	// display a snake color for each currently attached snakes
+
+	// actually write to the grid
+
+	for (var loop = 0; loop < this.snakes.length; loop++) {
+		// if the socket is connected then display the color on the screen
+		if (this.snakes[loop].socket !== undefined) {
+			var self = this;
+			this.snakes[loop].body.forEach(function(element){
+				self.grid.setPixelColor(element.x, element.y, self.snakes[loop].color);
+
+			});
+		}
+	}
+}
+
+function drawGame()
+{
+	var self = this;
+
+	// clear our grid
+	this.grid.setGridColor([ 0, 0, 0 ]);
+
+	// actually write to the grid
+
+	this.map.forEach(function(element, index) {
+		var width = self.grid.num_pixels_x;
+		if (element === 'food') {
+			self.grid.setPixelColor(index % width, Math.floor(index / width), self.options.foodColor);
+		} else if (element >= 0 && element < self.snakes.length) {
+			self.grid.setPixelColor(index % width, Math.floor(index / width), self.snakes[element].color);
+			// console.log("drawing S" + element + ": at X: " + index %
+			// width + " Y: " + Math.floor(index / width));
+		}
+	});
+}
+
 function Snakes(grid, options) {
 	options = options || {};
 	Snakes.super_.call(this, NAME, grid, options);
@@ -482,7 +536,6 @@ function Snakes(grid, options) {
 	this.checkCollision = CheckCollision;
 	this.findFreeSnake = findFreeSnake;
 	this.checkWalls = checkWalls;
-    this.playing = 'FALSE';
 
 	this.snakes = []; // we may have a few snakes
 	this.map = []; // this is grid.num_pixels_x * this.grid.num_pixels_y
@@ -492,6 +545,8 @@ function Snakes(grid, options) {
 	io.of('/snakes').on('connection', function(socket) {
 		console.log("Connected to snake");
 
+		socket.emit('state', self.state);
+
 		socket.on('disconnect', function() {
 			console.log("disconnected from snake");
 
@@ -500,21 +555,33 @@ function Snakes(grid, options) {
 			if (socket.snake !== undefined) {
 				socket.snake.socket = undefined;
 				socket.snake = undefined;
+				self.connections--;
+                if (self.connections == 0){
+                    self.state_set("finished");
+                }
 			}
 		});
 
 		socket.on('attach', function() {
 			console.log("got an attach");
-			socket.snake = self.findFreeSnake();
-			if (socket.snake !== undefined) {
-				socket.snake.socket = socket;
-				console.log("attached to snake " + socket.snake.id);
-				socket.emit('snake', {id: socket.snake.id, color: socket.snake.color});
-			} else {
-				console.log("cannot attach to snake");
-				socket.emit('errorMsg', {text: 'No Snake Available'});
+            if (self.state_is("waiting") || self.state_is("idle")) {
+                socket.snake = self.findFreeSnake();
+                if (socket.snake !== undefined) {
+                    socket.snake.socket = socket;
+                    console.log("attached to snake " + socket.snake.id);
+                    socket.emit('snake', {id: socket.snake.id, color: socket.snake.color});
+                    self.connections++;  // we have a connection
+                    socket.emit('state', self.state);
+                } else {
+                    console.log("cannot attach to snake");
+                    socket.emit('errorMsg', {text: 'No Snake Available'});
 //				socketError(socket, 'No Snake Available');
-			}
+                }
+            }
+            else
+            {
+                socket.emit('state', self.state);
+            }
 		});
 
 		socket.on('detach', function() {
@@ -522,12 +589,18 @@ function Snakes(grid, options) {
 				console.log('snake ' + socket.snake.id + ' detached from');
 				socket.snake.socket = undefined;
 				socket.snake = undefined;
+				self.connections--;
+                if (self.connections == 0){
+                    self.state_set("finished");
+                }
 			}
 		});
 
         socket.on('play', function() {
-           // start playing the game
-            self.playing = 'TRUE';
+        	if (self.state_is("waiting")) {
+				// start playing the game
+				self.state_set("playing");
+			}
         });
 
 		socket.on('turn', function(dir) {
@@ -568,104 +641,165 @@ function Snakes(grid, options) {
 	}
 }
 
-// Set up inheritance from Source
-  util.inherits(Snakes, Source);
+// Set up inheritance from Game
+util.inherits(Snakes, Game);
 
-var timeGameOver = 0;
+Snakes.prototype.detachAll = function() {
+    // loop through all the snakes
+    var loop;
 
-Snakes.prototype.step = function() {
-	var self = this;
-	var loop;
-	var gameOver = 'TRUE'; // assume it is over, if there is any snake alive it isn't
-
-    if (this.playing === 'TRUE') {
-        for (loop = 0; loop < this.snakes.length; loop++) {
-            // see if the game is over
-            if (this.snakes[loop].state !== 'ALIVE') {
-                if (this.snakes[loop].state === 'DIED') {
-                    console.log("snake " + loop + " died");
-                    // change state to dead
-                    this.snakes[loop].state = 'DEAD';
-                }
-
-                // don't clear the flag
-            } else {
-                // game can't be over, we have a live snake
-
-                gameOver = 'FALSE';
-
-                // if there are any LIVE snakes not connected to a socket
-                // then we can control them.
-
-                if (this.snakes[loop].socket === undefined) {
-                    switch (randomI(0, 15)) {
-                        case 0:
-                            this.snakes[loop].turn = 'RIGHT';
-                            break;
-                        case 1:
-                            this.snakes[loop].turn = 'LEFT';
-                            break;
-                    }
-                }
-            }
-        }
-
-//        console.log("gameOver " + gameOver);
-
-        if (gameOver === 'FALSE') {
-            // move all the snakes
-
-            for (loop = 0; loop < this.snakes.length; loop++) {
-                if (this.snakes[loop].state === 'ALIVE') {
-                    this.snakes[loop].moveSnake(this);
-                }
-            }
-
-            // check to see if anything collided
-
-            this.checkCollision();
-
-            // redraw in the map
-            for (loop = 0; loop < this.snakes.length; loop++) {
-                this.snakes[loop].drawSnake(this);
-            }
-
-        } else {
-            timeGameOver++;
-
-            if (timeGameOver === 100) {
-                console.log("timeGameOver " + timeGameOver);
-//			timeGameOver = 0;
-                // reinit
-//			self.snakes.forEach(function(element, index){
-//				var xy = { x: self.options['startx'+index], y: self.options['starty'+index] };
-
-//				element.reInit(element.direction, self.options['numSegments'+index], xy);
-//				element.color = self.options['color'+index];
-//				element.drawSnake(self);
-//			});
-            }
+    for (loop = 0; loop < this.snakes.length; loop++) {
+        // if the socket is still connected, disconnect
+        if (this.snakes[loop].socket !== undefined) {
+            this.snakes[loop].socket.emit("disconnecting");
+            this.snakes[loop].socket = undefined;
+            this.connections--;
         }
     }
+}
 
-	// clear our grid
-	this.grid.setGridColor([ 0, 0, 0 ]);
+Snakes.prototype.reInitGame = function() {
+    // We should detach all snakes from sockets
+    var loop;
 
-	// actually write to the grid
+    for (loop = 0; loop < this.snakes.length; loop++) {
+        // if the socket is still connected, disconnect
+        if (this.snakes[loop].socket !== undefined) {
+            this.snakes[loop].socket.emit("disconnecting");
+            this.snakes[loop].socket = undefined;
+            this.connections--;
+        }
 
-	this.map.forEach(function(element, index) {
-		var width = self.grid.num_pixels_x;
-		if (element === 'food') {
-			self.grid.setPixelColor(index % width, Math.floor(index / width), self.options.foodColor);
-		} else if (element >= 0 && element < self.snakes.length) {
-			self.grid.setPixelColor(index % width, Math.floor(index / width), self.snakes[element].color);
-			// console.log("drawing S" + element + ": at X: " + index %
-			// width + " Y: " + Math.floor(index / width));
-		}
-	});
+        // no matter what we can ReInit the snake
+        this.snakes[loop].reInit(randomDirection(), 4, randomXY());
+    }
+}
+
+Snakes.prototype.step = function() {
+
+	this.state_run(); // this is where we run the game and
+
+	//Only emit state once.
+	if( this.state != this.state_cache ) {
+		this.emit_state();
+		this.state_cache = this.state;
+		console.log("changed state", this.state);
+	}
 
 	// We changed the grid
 	return true;
+};
+
+Snakes.prototype.emit_state = function(){
+	if(this.state == "idle") {
+		io.of('/snakes').emit("state", this.state);
+	}
+	else
+	{
+		for (loop = 0; loop < this.snakes.length; loop++) {
+			// see if the game is over
+			if (this.snakes[loop].socket !== undefined) {
+				this.snakes[loop].socket.emit("state", this.state);
+			}
+		}
+	}
+}
+
+Snakes.prototype.idle = function(){
+	if (this.connections == 0)
+	{
+		// we should check the queue
+	}
+
+	// if we are have any players then goto waiting state
+
+	if (this.connections != 0)
+	{
+		// go to state waiting
+
+		this.state_set("waiting");
+		return;
+	}
+
+	// otherwise play a fully robot game
+
+	this.playing();
+};
+
+Snakes.prototype.waiting = function(){
+	drawWaiting.call(this);
+	// this.state_set("waiting");
+}
+
+Snakes.prototype.playing = function() {
+	var loop;
+	var gameOver = 'TRUE'; // assume it is over, if there is any snake alive it isn't
+
+	for (loop = 0; loop < this.snakes.length; loop++) {
+		// see if the game is over
+		if (this.snakes[loop].state !== 'ALIVE') {
+			if (this.snakes[loop].state === 'DIED') {
+				console.log("snake " + loop + " died");
+				// change state to dead
+				this.snakes[loop].state = 'DEAD';
+			}
+			// don't clear the flag
+		} else {
+			// game can't be over, we have a live snake
+
+			gameOver = 'FALSE';
+
+			// if there are any LIVE snakes not connected to a socket
+			// then we can control them.
+
+			if (this.snakes[loop].socket === undefined) {
+				switch (randomI(0, 15)) {
+					case 0:
+						this.snakes[loop].turn = 'RIGHT';
+						break;
+					case 1:
+						this.snakes[loop].turn = 'LEFT';
+						break;
+				}
+			}
+		}
+	}
+
+	if (gameOver === 'FALSE') {
+		// move all the snakes
+
+		for (loop = 0; loop < this.snakes.length; loop++) {
+			if (this.snakes[loop].state === 'ALIVE') {
+				this.snakes[loop].moveSnake(this);
+			}
+		}
+
+		// check to see if anything collided
+
+		this.checkCollision();
+
+		// redraw in the map
+		for (loop = 0; loop < this.snakes.length; loop++) {
+			this.snakes[loop].drawSnake(this);
+		}
+
+	} else {
+		this.state_set("finished");
+	}
+
+	drawGame.call(this);
+};
+
+Snakes.prototype.finished = function() {
+	if (!this.timeout) {
+		var self = this;
+		this.timeout = setTimeout(function () {
+			// reinit the game
+			self.reInitGame();
+			self.state_set("checkQueue"); // This will reset state to IDLE or ... Grab from Queue?
+			self.timeout = false;
+		}, 10000);
+	}
 };
 
 // Return js object containing all params and their types
@@ -740,8 +874,8 @@ Snakes.options_spec = function() {
 		'default' : 'RIGHT'
 	}
 
-	].concat(Source.options_spec());
-}
+	].concat(Game.options_spec());
+};
 
 // Export public interface
 exports.constructor = Snakes;

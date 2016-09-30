@@ -16,7 +16,7 @@
 
         body#finished .finished.state > span {display:none;}
         body#finished .finished.state.won .won {display:block;}
-        body#finished .finished.state.lost .lost {display:block;}
+        body#finished .finished.state.died .died {display:block;}
 
         .meta {display:none; text-align:center; width:100%; position:absolute;}
         body#idle .meta, body#waiting .meta, body#busy .meta {display:block;}
@@ -35,6 +35,9 @@
         .idle.state .status-text { background:white; width:240px; height:240px; border-radius:120px;}
         .idle.state .status-text span { position:absolute; top:50%; left:50%; transform:translateY(-50%) translateX(-50%); color:black; }
 
+        .waiting.state .status-text { background:white; width:240px; height:240px; border-radius:120px;}
+        .waiting.state .status-text span { position:absolute; top:50%; left:50%; transform:translateY(-50%) translateX(-50%); color:black; }
+
     </style>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/assets/js/jquery-3.1.0.min.js"></script>
@@ -45,7 +48,7 @@
 
         //-----------------------------------------------------------------------------
         function setup() {
-            document.title = "Blinken Pong";
+            document.title = "Blinken Snake";
             grid.paddle = new Paddle();
             grid.normalize = new Normalize( $(document).width() );
             namespace_setup();
@@ -123,14 +126,31 @@
         function bind_idle(){
             console.log('bind', 'play button')
             $('.play-btn').on('mousedown', function(){
-                location.reload();
-                // grid.namespace.emit('attach');
+                //location.reload();
+                grid.namespace.emit('attach');
                 // console.log('press', 'play button')
             })
         }
 
         function unbind_idle(){
             $('.play-btn').off('mousedown');
+        }
+
+        function bind_start(){
+            console.log('bind', 'start button')
+            var color = grid.paddle.color;
+
+            $('.start-btn').css("background-color", "rgb(" +color[0]+ "," +color[1]+ "," +color[2]+")");
+
+            $('.start-btn').on('mousedown', function(){
+                //location.reload();
+                grid.namespace.emit('play');
+                // console.log('press', 'play button')
+            })
+        }
+
+        function unbind_start(){
+            $('.start-btn').off('mousedown');
         }
 
         function unselectable(){
@@ -215,6 +235,7 @@
         }
         
         grid.state.waiting = function(state){
+            bind_start();
             grid.audio.waiting.play();
         }
 
@@ -272,10 +293,13 @@
         //-----------------------------------------------------------------------------
  
         function namespace_setup() {
-            grid.namespace = io.connect('/pong');
+            grid.namespace = io.connect('/snakes');
 
             grid.namespace.on('connect', function(){
                 msg = "Connected";
+
+                // we need to attach right away
+                grid.namespace.emit('attach');
                 // status_update(msg);
             });
 
@@ -291,11 +315,11 @@
                 // status_update(msg);
             });
 
-            grid.namespace.on('player', function(player){
-                // they have returned to me a player object.
+            grid.namespace.on('snake', function(snake){
+                // they have returned to me a snake object.
                 // I should take the color and set a color on the screen
-                msg = "Player " + player.id + " color " + player.color;
-                grid.paddle.set_color(player.color);
+                msg = "snake " + snake.id + " color " + snake.color;
+                grid.paddle.set_color(snake.color);
                 // status_update(msg);
             });
 
@@ -314,20 +338,20 @@
                 }
             });
 
-            grid.namespace.on('won', function(player){
+            grid.namespace.on('won', function(snake){
                 console.log('You Won!')
                 $('.finished')
-                    .removeClass('lost')
+                    .removeClass('died')
                     .addClass('won');
                 funfetti.call(window, '.finished.state');
                 grid.audio.win.play();
             });
 
-            grid.namespace.on('lost', function(player){
-                console.log('You lost :(')
+            grid.namespace.on('died', function(snake){
+                console.log('You died :(')
                 $('.finished')
                     .removeClass('won')
-                    .addClass('lost');
+                    .addClass('died');
                 grid.audio.lose.play();
             });
 
@@ -381,7 +405,7 @@
 <body id="body">
 
     <div class="meta">
-        <div class="title">Pong</div>
+        <div class="title">Snake</div>
         <span class="version">v0.2.0</span>
     </div>
 
@@ -390,7 +414,7 @@
     </div>
     
     <div class="waiting state">
-        <span class="status-text">Waiting for Opponent</span>
+        <span class="status-text start-btn"><span>Start</span></span>
     </div>
 
     <div class="busy state">
@@ -411,7 +435,7 @@
     
     <div class="finished state">
         <span class="status-text won">You Won!</span>
-        <span class="status-text lost">You Lost.</span>
+        <span class="status-text died">You Died.</span>
     </div>
 
     <div class="plebes meta">
