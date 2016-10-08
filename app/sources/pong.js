@@ -45,7 +45,7 @@ function updatePaddlePositions()
         // Follow along with the ball's position:
         if (this.player1.dir === 'DWN') {
             if (this.player1.posY < (this.grid.num_pixels_y - this.paddle.halfHeight)) {
-                this.player1.posY += this.player1.velY;
+                this.player1.posY += this.player1.velY + .4 * Math.random();
             }
             else {
                 // Can't go down any more. Go up
@@ -57,7 +57,7 @@ function updatePaddlePositions()
         {
             if(this.player1.posY > this.paddle.halfHeight)
             {
-                this.player1.posY -= this.player1.velY + .05;
+                this.player1.posY -= this.player1.velY + .05 * Math.random();
             }
             else {
                 // Can't go down any more. Go up
@@ -84,6 +84,23 @@ function updatePaddlePositions()
 
     this.player1.posY = constrainPosition.call(this, this.player1.posY);
     this.player2.posY = constrainPosition.call(this, this.player2.posY);
+}
+
+function adjustBallSpeed()
+{
+    // try to keep the angle from getting 2 steep
+
+    if (Math.abs(this.ball.velY) > (.8 * Math.abs(this.ball.velX))) {
+        // this would be too big so reduce it a little
+
+        if (((this.ball.velY > 0) && (this.ball.velX > 0)) ||
+            ((this.ball.velY < 0) && (this.ball.velX < 0))) {
+            this.ball.velY = this.ball.velX;
+        }
+        else {
+            this.ball.velY = -this.ball.velX;
+        }
+    }
 }
 
 // Move the ball and re-calculate its position:
@@ -139,6 +156,10 @@ function moveBall()
             this.ball.velY = 1.5 * (this.ball.posY - this.player2.posY) / this.paddle.halfHeight;
         }
     }
+
+    // don't let the X/Y get too steep
+
+    adjustBallSpeed.call(this);
 
     this.ball.disX = this.ball.posX;
     this.ball.disY = this.ball.posY;
@@ -208,7 +229,7 @@ function drawPaddle(x, y)
 function drawBall(x, y)
 {
 //    this.grid.setPixelColor(x, y, this.ball.color);
-  this.grid.circle(x, y, this.ball.radius);
+  this.grid.circleFill(x, y, this.ball.radius);
 }
 
 // Check if either player has won.
@@ -311,13 +332,15 @@ function drawCountdown(player)
     // this.grid.print("Begins in");
     
     this.grid.setCursor(25, 20);
+    this.grid.setColor([0,200,0]);
     var tminus = 5-this.countdown_elapsed;
     if(tminus < 1) {
         this.grid.print("Go!");
     }
     else 
     {
-        this.grid.print(tminus);    
+//        this.grid.print(tminus);
+        this.grid.circle(31,23,tminus);
     }
     
     var pong = this;
@@ -413,8 +436,8 @@ function Pong(grid, options) {
     this.enemyVelY = 0.5;
 
     this.ball = {
-        radius: 0.75,
-        speedX: 0.35,
+        radius: 1,
+        speedX: 0.45,
         posX: 0.0,
         posY: 0.0,
         velX: 0.0,
@@ -635,7 +658,7 @@ Pong.prototype.reset = function(){
     this.ball.velX = -1.0 * this.ball.speedX;
     this.ball.posX = this.grid.num_pixels_x  / 2.0;
     this.ball.posY = this.grid.num_pixels_y / 2.0;
-    this.enemyVelY = 0.5;
+    this.enemyVelY = 0.3;
 
     this.resetScores();
 
@@ -705,7 +728,7 @@ Pong.options_spec = function() {
     return [ {
         'name' : 'scoreToWin',
         'type' : 'integer',
-        'default' : 3
+        'default' : 6
     }, {
         'name' : 'playMode',
         'type' : 'string',
