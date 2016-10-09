@@ -21,19 +21,19 @@ Vagrant is a portable environment that removes the hassle of aligning your local
 1. Start the application `node app.js`
 
 #### Common Vagrant Operations
-1. Stopping Vagrant - `vagrant halt`
-1. Starting Vagrant - `vagrant up`
-1. SSH to box - `vagrant ssh`
-1. Destroy/Remove Box - `vagrant destroy`
+- Stopping Vagrant - `vagrant halt`
+- Starting Vagrant - `vagrant up`
+- SSH to box - `vagrant ssh`
+- Destroy/Remove Box - `vagrant destroy`
 
 ### On Local System/No Virtualization
-1. Install Node
+- Install Node
 ```
 curl -sL https://deb.nodesource.com/setup_4.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
 
-2. Install Modules
+- Install Modules
 ```
 sudo npm install
 ```
