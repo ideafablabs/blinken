@@ -1,3 +1,3 @@
 # Blinken
 
-See readme in /driver folder.
+See readme in /app folder.
