@@ -32,12 +32,14 @@ Vagrant is a portable environment that removes the hassle of aligning your local
 curl -sL https://deb.nodesource.com/setup_4.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
+
 1. Install Modules
 ```
 sudo npm install
 ```
 ### Troubleshooting
 If you are or have developed with node on your system in the past, it's very likely you'll encounter some issues. Blinken relies on specific versioning due to specific and fringe dependencies. While having multiple node.js versions on your system is possible, it's tricky, and will likely cause you headaches. You may want to just use Vagrant. 
+
 1. Check your node version and ensure it is 4.x `node -v`
 1. Check your global node modules, and compare these with modules in `package.json`
 1. Check your NPM version. 
