@@ -17,8 +17,8 @@ Vagrant is a portable environment that removes the hassle of aligning your local
 1. Provision Vagrant `vagrant up --provision` (this only needs to be ran **once**)
 1. Follow any prompts
 1. SSH into Vagrant `vagrant ssh`
-1. Move to the active directory `cd /vagrant`
-1. Start the application `node app.js`
+1. Move to the active directory `cd /vagrant/app`
+1. Start the application `node index.js`
 
 #### Common Vagrant Operations
 - Stopping Vagrant - `vagrant halt`
