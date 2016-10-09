@@ -4,7 +4,7 @@ _0.2.1 alpha_
 
 Blinken is a channel manager and mixer for a matrix of lights. It was designed for the cieling in Idea Fabrication Labs in Chico, CA for it's 2880 RGB pixel cieling array. It is a basically a channel mixer. Each channel can have a source assigned to it.
 
-The app is located in /driver with project specific files in /docs
+The app is located in `/app` with project specific files in `/docs`
 
 ## What is the point?
 
@@ -38,20 +38,20 @@ The API can be accessed via REST of Websockets for bi-directional communication.
 
 ### Sources
 
-* GET /sources returns list of known sources
+* `GET /sources` returns list of known sources
 
 ### channels
 
-* GET /mixer/channels returns list of channels currently defined
-* POST /mixer/channels adds a channel to the stack
-* GET /mixer/channels/:id returns info about a particular channel (:id is the id assigned by the system)
-* PUT /mixer/channels/:id updates the channel with a new source and/or options
-* DELETE /mixer/channels/:id removes the channel from the stack
+* `GET /mixer/channels` returns list of channels currently defined
+* `POST /mixer/channels` adds a channel to the stack
+* `GET /mixer/channels/:id` returns info about a particular channel (:id is the id assigned by the system)
+* `PUT /mixer/channels/:id` updates the channel with a new source and/or options
+* `DELETE /mixer/channels/:id` removes the channel from the stack
 
 ### Grid
 
-* GET /grid returns the current color state of the array
-* GET /grid/:x/:y returns the current color state of a particular pixel
+* `GET /grid` returns the current color state of the array
+* `GET /grid/:x/:y` returns the current color state of a particular pixel
 
 ## Websockets
 
