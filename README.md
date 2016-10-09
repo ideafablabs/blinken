@@ -44,4 +44,4 @@ If you are or have developed with node on your system in the past, it's very lik
 1. Check your global node modules, and compare these with modules in `package.json`
 1. Check your NPM version. 
 
-See readme in `/app` directory for information on how to use and configure Blinken.
+See readme in `/app` directory for information on how to use and configure Blinken. https://github.com/ideafablabs/blinken/blob/master/app/README.md
