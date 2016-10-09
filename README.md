@@ -9,8 +9,8 @@ To ease installation, it is suggested you install and run with Vagrant. However,
 Vagrant is a portable environment that removes the hassle of aligning your local environment with the needs of the application. This will normally allow you to get started with development extremely fast. This is also ideal if you work on multiple projects, as tweaking your environment for one application while often result in another breaking. Vagrant is cross-platform, so Blinken can be ran effortlessly on Windows, Mac and Linux. 
 
 #### Prerequisites 
-- (Vagrant)[http://vagrantup.com]
-- (VirtualBox)[https://www.virtualbox.org/wiki/Downloads]
+- [Vagrant](http://vagrantup.com)
+- [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
 
 #### Setup
 1. Checkout blinken `git checkout https://github.com/ideafablabs/blinken.git`
