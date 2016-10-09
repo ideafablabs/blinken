@@ -59,19 +59,19 @@ The API can be accessed via REST of Websockets for bi-directional communication.
 
 #### Sources
 
-* 'list sources'
+* `list sources`
 
 #### Channels 
 
-* 'list channels' 
-* 'create channel' *channel_name*, *source_name*, *source_options* returns channel_id
-* 'update channel' *channel_id*, *channel_options*
-* 'destroy channel' *channel_id*
-* 'get channel' *channel_id*
+* `list channels` 
+* `create channel` *channel_name*, *source_name*, *source_options* returns channel_id
+* `update channel` *channel_id*, *channel_options*
+* `destroy channel` *channel_id*
+* `get channel` *channel_id*
 
 #### Grid
 
-* 'get grid' - get master grid
+* `get grid` - get master grid
 
 ### example 
 
@@ -81,25 +81,27 @@ The API can be accessed via REST of Websockets for bi-directional communication.
 
 #### Sources
 
-* 'refresh sources' - returns sources
+* `refresh sources` - returns sources
 
 #### Channels 
 
-* 'refresh channels' - returns channel object
-* 'channel created' - returns ID, 'refresh channels' event concurrently called.
-* 'channel updated' - returns ID, 'refresh channels' event concurrently called.
-* 'channel destroyed' - returns ID, 'refresh channels' event concurrently called.
-* 'channel result' - returns requested channel
+* `refresh channels` - returns channel object
+* `channel created` - returns ID, 'refresh channels' event concurrently called.
+* `channel updated` - returns ID, 'refresh channels' event concurrently called.
+* `channel destroyed` - returns ID, 'refresh channels' event concurrently called.
+* `channel result` - returns requested channel
 
 #### Grid
 
-* 'refresh grid' - returns grid object
+* `refresh grid` - returns grid object
 
 ### example 
 
-```socket.on('refresh channels', function(channels){
+```
+socket.on('refresh channels', function(channels){
 	alert(channels.length);
-})```
+})
+```
 
 # Objects
 
