@@ -1,6 +1,8 @@
 var path = require('path');
 var util = require('util');
-var Source = require('../source');
+
+var Game = require('../game');
+//var Source = require('../source');
 
 var NAME = path.basename(__filename, '.js'); // Our unique name
 
@@ -43,7 +45,7 @@ function updatePaddlePositions()
         // Follow along with the ball's position:
         if (this.player1.dir === 'DWN') {
             if (this.player1.posY < (this.grid.num_pixels_y - this.paddle.halfHeight)) {
-                this.player1.posY += this.player1.velY;
+                this.player1.posY += this.player1.velY + .4 * Math.random();
             }
             else {
                 // Can't go down any more. Go up
@@ -55,7 +57,7 @@ function updatePaddlePositions()
         {
             if(this.player1.posY > this.paddle.halfHeight)
             {
-                this.player1.posY -= this.player1.velY + .05;
+                this.player1.posY -= this.player1.velY + .05 * Math.random();
             }
             else {
                 // Can't go down any more. Go up
@@ -82,6 +84,23 @@ function updatePaddlePositions()
 
     this.player1.posY = constrainPosition.call(this, this.player1.posY);
     this.player2.posY = constrainPosition.call(this, this.player2.posY);
+}
+
+function adjustBallSpeed()
+{
+    // try to keep the angle from getting 2 steep
+
+    if (Math.abs(this.ball.velY) > (.8 * Math.abs(this.ball.velX))) {
+        // this would be too big so reduce it a little
+
+        if (((this.ball.velY > 0) && (this.ball.velX > 0)) ||
+            ((this.ball.velY < 0) && (this.ball.velX < 0))) {
+            this.ball.velY = this.ball.velX;
+        }
+        else {
+            this.ball.velY = -this.ball.velX;
+        }
+    }
 }
 
 // Move the ball and re-calculate its position:
@@ -134,12 +153,16 @@ function moveBall()
             this.ball.posY < this.player2.posY + this.paddle.halfHeight + this.ball.radius)
         {
             this.ball.velX = -1.0 * this.ball.speedX;
-            this.ball.velY = 2.0 * (this.ball.posY - this.player2.posY) / this.paddle.halfHeight;
+            this.ball.velY = 1.5 * (this.ball.posY - this.player2.posY) / this.paddle.halfHeight;
         }
     }
 
-    this.ball.posX = Math.round(this.ball.posX);
-    this.ball.posY = Math.round(this.ball.posY);
+    // don't let the X/Y get too steep
+
+    adjustBallSpeed.call(this);
+
+    this.ball.disX = this.ball.posX;
+    this.ball.disY = this.ball.posY;
 }
 
 // Draw the paddles, ball and score:
@@ -168,8 +191,8 @@ function drawGame()
     drawPaddle.call(this, this.player1.posX, this.player1.posY);
     this.grid.setColor(this.player2.color);
     drawPaddle.call(this, this.player2.posX, this.player2.posY);
-    this.grid.setColor([0, 128, 0]);
-    drawBall.call(this, this.ball.posX, this.ball.posY);
+    this.grid.setColor(this.ball.color);
+    drawBall.call(this, Math.round(this.ball.disX), Math.round(this.ball.disY));
 }
 
 // Draw the two score integers on the screen
@@ -185,7 +208,7 @@ function drawScore(player1, player2)
         this.grid.lineH(60 - player2, 0, player2);
     }
 
-    this.grid.setColor([0, 128, 0]);
+    this.grid.setColor(this.ball.color);
 
 //  this.grid.setCursor(10, 2);
 //  this.grid.print(player1);
@@ -205,8 +228,8 @@ function drawPaddle(x, y)
 // Draw a ball, give it's x and y coords
 function drawBall(x, y)
 {
-    this.grid.setPixelColor(x, y, [0, 128, 0]);
-//  this.grid.circle(x, y, this.ball.radius);
+//    this.grid.setPixelColor(x, y, this.ball.color);
+  this.grid.circleFill(x, y, this.ball.radius);
 }
 
 // Check if either player has won.
@@ -232,7 +255,7 @@ function checkWin()
     return 0;
 }
 
-// Check for which palyer forfeited
+// Check for which player forfeited
 // Returns:
 //  0 - Neither player has won.
 //  1 - Player 1 has won
@@ -309,13 +332,15 @@ function drawCountdown(player)
     // this.grid.print("Begins in");
     
     this.grid.setCursor(25, 20);
+    this.grid.setColor([0,200,0]);
     var tminus = 5-this.countdown_elapsed;
     if(tminus < 1) {
         this.grid.print("Go!");
     }
     else 
     {
-        this.grid.print(tminus);    
+//        this.grid.print(tminus);
+        this.grid.circle(31,23,tminus);
     }
     
     var pong = this;
@@ -345,18 +370,6 @@ function Pong(grid, options) {
     var self = this;
     this.connections = 0;
 
-    // Soggy Sandwich
-    this.state;
-    this.state_cache = "";
-    this.state_set("idle") //idle, waiting for opponent, 
-
-    this.queue = new Array();
-    this.triggers = new Array();
-    this.countdown_elapsed = 0;
-    this.countdown_begin = 0;
-    this.total = 0;
-    this.timeout = false;
-
     this.winner = false;
     this.loser = false;
 
@@ -384,12 +397,12 @@ function Pong(grid, options) {
         socket.on('pos', function(position) {
             if (socket.player !== undefined) {
                 socket.player.posY = constrainPosition.call(self, parseFloat(position));
-                console.log("pos " + position + " for player " + socket.player.id + " constrained " + socket.player.posY);
+//                console.log("pos " + position + " for player " + socket.player.id + " constrained " + socket.player.posY);
             }
         });
     });
 
-    // Game Variables: some of these we will fill in right after this, It seemed easier
+    // Pong Variables: some of these we will fill in right after this, It seemed easier
 
     this.paddle = {
         width: 0.0,
@@ -423,12 +436,13 @@ function Pong(grid, options) {
     this.enemyVelY = 0.5;
 
     this.ball = {
-        radius: 0.5,
-        speedX: 1.0,
+        radius: 1,
+        speedX: 0.45,
         posX: 0.0,
         posY: 0.0,
         velX: 0.0,
-        velY: 0
+        velY: 0,
+        color: [200, 200, 0]
     };
 
     // setup initial pong game
@@ -449,37 +463,34 @@ function Pong(grid, options) {
     this.grid.print("for multi");*/
 }
 
-// Set up inheritance from Source
-util.inherits(Pong, Source);
+// Set up inheritance from Game which is a source
+util.inherits(Pong, Game);
 
 //var timeGameOver = 0;
 
 Pong.prototype.step = function() {
 
-    // Throttling?
-
-    if (++this.stepCnt < 100) {
-        return true;
-    }
 
     // Ever seen a realllllllly ugly if? Well, you're about to. Seriously, don't change the order. 
     //It's done like this to limit spaghetti code, without this pattern, state setting and running occurs all over the place, and is difficult to change.
                                                                             
     //This is where it loops around, so we need allow "finished" to complete.
-    if( this.total_attached() == 0 )   
-    {                                   
-        this.state_set("idle") 
+
+    if( this.total_attached() == 0 && (this.state_is("finished") || !(this.state_is("idle") || this.state_is("checkQueue"))) )
+    {
+        this.reset();
+        this.state_set("checkQueue");
     }
 
     //Only one player is attached
     else if( this.total_attached() == 1 && !this.state_is("playing") && !this.state_is("forfeit") )
     {                                     
-        this.state_set("waiting"); 
+        this.state_set("waiting");
         this.resetScores();
     }
     
     //A player left in the middle of the game.
-    else if( this.state_is("forfeit") || (this.state_is("playing") && this.total_attached() == 1) )
+    else if( !this.state_is("forfeit") && (this.state_is("playing") && this.total_attached() == 1) )
     {
         this.state_set("forfeit");
     }
@@ -491,16 +502,18 @@ Pong.prototype.step = function() {
     }
 
     //Time to move on to the game :)
-    else if( 
-        (this.state_is("countdown") && this.countdown_elapsed > 5) ||
-        (this.state_is("playing") && !checkWin.call(this))
-      )  
+    else if( this.state_is("countdown") && this.countdown_elapsed > 5)
     {
-        this.countdown_elapsed = 0
-        ,this.countdown_begin = 0;
+        this.countdown_elapsed = 0;
+        this.countdown_begin = 0;
         this.state_set("playing");
     }
-
+    // else if(this.state_is("playing") && !checkWin.call(this))
+    // {
+    //     this.countdown_elapsed = 0;
+    //     this.countdown_begin = 0;
+    //     this.state_set("playing");
+    // }
     //Someone just won.
     else if( this.state_is("playing") && checkWin.call(this) )    
     {          
@@ -508,11 +521,20 @@ Pong.prototype.step = function() {
     }
 
     //Finished state will remove attached players after some time, triggering idle.
-    else if( this.state_is("finished") && this.total_attached() == 0) 
-    {                
+    // I think the very first if will see this not here
+    else if( this.state_is("finished") && this.total_attached() == 0) {
         this.state_set("idle");
-        this.reset(); 
+        this.reset();
     }
+
+    // if we are in idle mode we will run the demo. I think the demo should run it's own state machine
+    // so that at any point is someone connects we can just abandon the demo state and go to waiting
+
+    // if the demo was running, someone just won. so let the screen display
+//    else if( this.state_is("idle") && checkWin.call(this) )
+//    {
+//        this.state_set("finished");
+//    }
 
     //Only emit state once. 
     if( this.state != this.state_cache ) {
@@ -521,7 +543,7 @@ Pong.prototype.step = function() {
         console.log("changed state", this.state);
     }
 
-    this.state_run();
+    this.state_run(); // this is where we run the game and
 
     return true;
 };
@@ -533,27 +555,27 @@ Pong.prototype.total_attached = function(){
     return total;
 }
 
-//Game states
-
-Pong.prototype.state_is = function(state){
-    return (this.state == state);
-}
-
-Pong.prototype.state_run = function(){
-    if(typeof this[this.state] == "function") this[this.state]();
-    else console.log("There seems to be an issue with your state, you should look into that.");
-}
-
-Pong.prototype.state_set = function(state){
-    this.state = state;
-}
-
+//Pong states
 
 Pong.prototype.idle = function(){
-    updatePaddlePositions.call(this);
-    moveBall.call(this);
-    drawGame.call(this);
-    this.resetScores(); //Hack for  glitch
+    // this is going to run the demo
+
+    if (!this.idleTimeout) {
+        updatePaddlePositions.call(this);
+        moveBall.call(this);
+        drawGame.call(this);
+
+        if (checkWin.call(this) != 0) {
+            drawWin.call(this, checkWin.call(this));
+            var self = this;
+            this.idleTimeout = setTimeout(function(){
+                self.reset(self);
+                self.idleTimeout = false;
+            }, 5000);
+
+        }
+    }
+//    this.resetScores(); //Hack for  glitch
 }
 
 Pong.prototype.waiting = function(){
@@ -563,14 +585,8 @@ Pong.prototype.waiting = function(){
 
 Pong.prototype.countdown = function(){
 
-    if(!this.countdown_begin) 
-    {
-        this.countdown_begin = new Date();
-    }
-
-    this.resetScores();
-
-    this.countdown_elapsed = Math.floor( (new Date() - this.countdown_begin)/1000 ); 
+//    this.resetScores();
+    Pong.super_.prototype.countdown.apply(this);
     drawCountdown.call(this);
 }
 
@@ -596,14 +612,17 @@ Pong.prototype.playing = function(){
     updatePaddlePositions.call(this);
     moveBall.call(this);
     drawGame.call(this);
-    // this.state_set("playing");
 }
 
 Pong.prototype.finished = function(){
     drawWin.call(this, checkWin.call(this));
     if(!this.timeout) {
-        this[this.winner].socket.emit('won');
-        this[this.loser].socket.emit('lost');
+        if(this[this.winner].socket !== undefined) {
+            this[this.winner].socket.emit('won');
+        }
+        if(this[this.loser].socket !== undefined) {
+            this[this.loser].socket.emit('lost');
+        }
         var self = this;
         this.timeout = setTimeout(function(){
             self.detachAll(); // This will reset state to IDLE or ... Grab from Queue?
@@ -622,8 +641,9 @@ Pong.prototype.forfeit = function(){
         var self = this;
         this.timeout = setTimeout(function(){
             drawWin.call(self, winner);
-            var timeout = setTimeout(function(){
+            self.timeout = setTimeout(function(){
                 self.detachAll(); // This will reset state to IDLE or ... Grab from Queue?
+                self.timeout = false;
             }, 3000);
         }, 5000);
     }  
@@ -638,7 +658,7 @@ Pong.prototype.reset = function(){
     this.ball.velX = -1.0 * this.ball.speedX;
     this.ball.posX = this.grid.num_pixels_x  / 2.0;
     this.ball.posY = this.grid.num_pixels_y / 2.0;
-    this.enemyVelY = 0.5;
+    this.enemyVelY = 0.3;
 
     this.resetScores();
 
@@ -708,7 +728,7 @@ Pong.options_spec = function() {
     return [ {
         'name' : 'scoreToWin',
         'type' : 'integer',
-        'default' : 10
+        'default' : 6
     }, {
         'name' : 'playMode',
         'type' : 'string',
@@ -724,7 +744,7 @@ Pong.options_spec = function() {
     }
 
 
-    ].concat(Source.options_spec());
+    ].concat(Game.options_spec());
 };
 
 // var Queue = function(){

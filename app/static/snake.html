@@ -1,364 +1,448 @@
 <!DOCTYPE html5>
 <head>
-<meta charset="utf-8">
-<style type="text/css"> 
-.positioned
-{
-position:absolute;
-}
+    <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css?family=Lato|Rubik+Mono+One" rel="stylesheet">
+    <style type="text/css">
+        body { margin: 0; padding: 0;   width: 100%; height: 100%;  overflow: hidden; background:#000; font-family: 'Lato', sans-serif; }
 
-.dimmed
-{
-background-color:#555;
-}
-.hidden
-{
-visibility:hidden;
-}
+        div.state { display:none; position:absolute; top:0px; left:0px; right:0px; bottom:0px; } 
+        body#waiting .waiting.state { display:block; }
+        body#countdown .countdown.state { display:block; }
+        body#playing .playing.state { display:block; }
+        body#finished .finished.state { display:block; }
+        body#busy .busy.state { display:block; }
+        body#idle .idle.state { display:block; }
+        body#connection-error .error.state { display:block; }
 
-</style>
-<script src="/socket.io/socket.io.js"></script>
-<script>
-//-----------------------------------------------------------------------------
-var grid = Object();  // global object
+        body#finished .finished.state > span {display:none;}
+        body#finished .finished.state.won .won {display:block;}
+        body#finished .finished.state.died .died {display:block;}
 
-//-----------------------------------------------------------------------------
-function setup() {
-	document.title = "Blinken Snakes";
-	grid.color_background = '#000000';  // black
-	grid.color_highlighted = 'rgb(220,220,250)';  // light bluish color
-	grid.color_selected = '#FFFFFF'; // white
-	grid.color_default = '#000000';  // black
+        .meta {display:none; text-align:center; width:100%; position:absolute;}
+        body#idle .meta, body#waiting .meta, body#busy .meta {display:block;}
 
-	grid.cell_cols = 60;
-	grid.cell_rows = 48;
-	grid.cell_margin = 2;
-	grid.cell_size = 8;
-	grid.cell_height = grid.cell_size;
-	grid.cell_width = grid.cell_size;
-	
-	grid.x_margin = 20;
-	grid.y_margin = 20;
-	grid.done = false;
+        .title {top:5px; color:#BADA55; font-size:3vw; font-family: 'Rubik Mono One', sans-serif;}
+        .plebes {bottom:5px; font-size:8pt; color:#c0c0c0;}
+        .version {font-size:11pt;color:#f0f0f0;}
 
-	grid.timer_tick_interval_ms = 50; // milliseconds per timer tick
-	
-	grid.running = false;
-	grid.timer_count = 0;
-	grid.selected_cell_name = '';
+        .plebes span {margin-right:15px; text-transform:uppercase;}
+        
+        
+        #paddle { position:absolute; width:10%; height:10%; top:50%; left:50%; transform:translateY(-50%) translateX(-50%); background-color:#FFF; }
 
-	namespace_setup();
-	
-	// insert content into html spans
-	grid_setup();
-	
+        .status-text {position:absolute; top:50%; left:50%; transform:translateY(-50%) translateX(-50%); color:#fff; font-size:35px; }
 
-	// setup events
-	document.getElementById("play_button").onclick=function(){play_button_click()};
-	document.getElementById("stop_button").onclick=function(){stop_button_click()};
-	document.getElementById("attach_button").onclick=function(){attach_button_click()};
-	document.getElementById("detach_button").onclick=function(){detach_button_click()};
-	document.getElementById("right_button").onclick=function(){right_button_click()};
-	document.getElementById("left_button").onclick=function(){left_button_click()};
+        .idle.state .status-text { background:white; width:240px; height:240px; border-radius:120px;}
+        .idle.state .status-text span { position:absolute; top:50%; left:50%; transform:translateY(-50%) translateX(-50%); color:black; }
 
-	grid.availWidth = screen.availWidth;
-	grid.availHeight = screen.availHeight;
-	grid.screen_width = screen.width;
-	grid.screen_height = screen.height;
+        .waiting.state .status-text { background:white; width:240px; height:240px; border-radius:120px;}
+        .waiting.state .status-text span { position:absolute; top:50%; left:50%; transform:translateY(-50%) translateX(-50%); color:black; }
 
-	start_button_click(); // start timer tick event
-}
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/assets/js/jquery-3.1.0.min.js"></script>
+    <script src="/assets/js/funfetti.js"></script>
+    <script>
+        //-----------------------------------------------------------------------------
+        var grid = Object();  // global object
 
+        //-----------------------------------------------------------------------------
+        function setup() {
+            document.title = "Blinken Snake";
+            grid.paddle = new Paddle();
+            grid.normalize = new Normalize( $(document).width() );
+            namespace_setup();
+            unselectable();
+            anonymize_plebes()
+            grid.audio = audio_init();
+            // insert content into html span
+        }
+        //-----------------------------------------------------------------------------
+        var Paddle = function(){
+            this.color = [255,255,255];
+            this.active = false;
+            this.sel = "#paddle";
+            this.$el = $(this.sel);
 
-//-----------------------------------------------------------------------------
-function grid_setup() {
-	// create grid of cells
-	grid.board = {};
-	for(row_num=1; row_num<=grid.cell_rows; row_num++) {
-		for(col_num=1; col_num<=grid.cell_cols; col_num++) {
-			cell = Object();
-			cell.text = '';
-			cell.color = grid.color_default;
-			cell.name = 'cell_'+row_num+'_'+col_num;
-			cell.row = row_num;
-			cell.col = col_num;
-			cell.x_pos = grid.x_margin + (col_num * (grid.cell_width + grid.cell_margin));
-			cell.y_pos = grid.x_margin + (row_num * (grid.cell_width + grid.cell_margin));
-			
-			grid.board[cell.name] = cell;
+            this.pos_cache = 0;
+            this.invert = false;
+        }
 
-			cell_update_color(col_num, row_num, grid.color_default);
-		}
-	}
-}
+        Paddle.prototype.set_color = function(color){
+            this.color = color;
+        }
 
-//-----------------------------------------------------------------------------
-function namespace_setup() {
-    grid.namespace = io.connect('/snakes');
+        Paddle.prototype.paint = function(){
+            var color = this.color;
 
-	grid.namespace.on('connect', function(){
-		msg = "Connected";
-		status_update(msg);
-	});
-	
-	grid.namespace.on('disconnect', function(){
-		button_update_color([220,220,220]);
-		status_update('Disconnected');
-	});
+            var rgb = "rgb("+color[0]+","+color[1]+","+color[2]+")";    
+            this.$el.css("background-color", "rgb(" +color[0]+ "," +color[1]+ "," +color[2]+")");
+        }
 
-	grid.namespace.on('snake', function(snake){
-		// they have returned to me a snake object.
-		// I should take the color and set a color on the screen
-		msg = "Snake " + snake.id + " color " + snake.color;
-		button_update_color(snake.color);
-		status_update(msg);
-	});
-	
-	grid.namespace.on('died', function(snake){
-		// they have returned to me a snake object.
-		// I should take the color and set a color on the screen
-		msg = "Snake " + snake.id + " died";
-		button_update_color(snake.color);
-		status_update(msg);
-	});
-	
-	grid.namespace.on('errorMsg', function(msg){
-		// display the error message
-		status_update(msg.text);
-	});
-}
+        Paddle.prototype.move = function(e){
+            if(!this.active) return;
+            this.$el.css("left", e.pageX+"px");
+            var paddle_pos = grid.normalize.get(e.pageX);
+            if(paddle_pos != this.pos_cache) {
+                grid.namespace.emit('pos', paddle_pos );
+                this.pos_cache = paddle_pos;
+            }
+        }
 
+        Paddle.prototype.on = function(e){
+            bind_playing();
+            this.active = true;
+        }
+        Paddle.prototype.off = function(e){
+            unbind_playing();
+            this.active = false;
+        }
 
-//-----------------------------------------------------------------------------
-function timer_tick() {
-	// timer event called at regular interval
-	grid.timer_count++;
-	if (grid.running) {
-		msg = "Running ";
-		msg += "("+grid.timer_tick_interval_ms/1000+" sec loop) ";
-		msg +=  " tick "+grid.timer_count;
-	} else {
-		msg = "Stopped";
-	}
-	
-	screen_update();
-	
-//	status_update(msg);
-	
-}
+        //-----------------------------------------------------------------------------
+        grid.is_dragging = false;
+        //
+        function bind_playing(){
+                //
+                $('.state.playing').on('mousedown', bind_mousedown);
+                $('.state.playing').on('mousemove', bind_mousemove);
+                $('.state.playing').on('mouseup', bind_mouseup);
+                //
+                $('.state.playing').on('touchstart', touch_handler);
+                $('.state.playing').on('touchmove', touch_handler);
+                $('.state.playing').on('touchend', touch_handler);
+        }
 
+        function unbind_playing(){
+                //
+                $('.state.playing').off('mousedown', bind_mousedown);
+                $('.state.playing').off('mousemove', bind_mousemove);
+                $('.state.playing').off('mouseup', bind_mouseup);
+                //
+                $('.state.playing').off('touchstart', touch_handler);
+                $('.state.playing').off('touchmove', touch_handler);
+                $('.state.playing').off('touchend', touch_handler);
+        }
 
-//-----------------------------------------------------------------------------
-function save_settings_click() {
-	// called when "hide settings" button is clicked
-	document.getElementById("settings_div").style.display="none";
-	document.getElementById("save_settings_button").style.display="none";
-	document.getElementById("show_settings_button").style.display="inline";
-	
-	new_grid = false;
-	value = parseInt(document.getElementById("input_cols").value);
-	if (grid.cell_cols != value) {
-		grid.cell_cols = value;
-		new_grid = true;
-	}
-	value = parseInt(document.getElementById("input_rows").value);
-	if (grid.cell_rows != value) {
-		grid.cell_rows = value;
-		new_grid = true;
-	}
-	if (new_grid) {
-		grid_setup(); // re-setup grid
-	}
-	
-	value = document.getElementById("input_bgcolor").value;
-	document.getElementById("body").style.backgroundColor = value;
-	
-}
+        function bind_idle(){
+            console.log('bind', 'play button')
+            $('.play-btn').on('mousedown', function(){
+                //location.reload();
+                grid.namespace.emit('attach');
+                // console.log('press', 'play button')
+            })
+        }
 
+        function unbind_idle(){
+            $('.play-btn').off('mousedown');
+        }
 
+        function bind_start(){
+            console.log('bind', 'start button')
+            var color = grid.paddle.color;
 
-//-----------------------------------------------------------------------------
-function show_settings_click() {
-	// event called when "show settings" button is clicked
-	document.getElementById("settings_div").style.display="block";
-	document.getElementById("save_settings_button").style.display="inline";
-	document.getElementById("show_settings_button").style.display="none";
-}
+            $('.start-btn').css("background-color", "rgb(" +color[0]+ "," +color[1]+ "," +color[2]+")");
 
+            $('.start-btn').on('mousedown', function(){
+                //location.reload();
+                grid.namespace.emit('play');
+                // console.log('press', 'play button')
+            })
+        }
 
-//-----------------------------------------------------------------------------
-function start_button_click() {
-	// event called when "start" button is clicked
-	if (grid.running == false) {
-		grid.running = true;
-		ms = grid.timer_tick_interval_ms;
-		grid.timer_handle = window.setInterval(function(){timer_tick()}, ms);
-		mode_select_onchange();
-	}
-}
+        function unbind_start(){
+            $('.start-btn').off('mousedown');
+        }
 
-//-----------------------------------------------------------------------------
-function stop_button_click() {
-	// event called when "stop" button is clicked
-	if (grid.running == true) {
-		grid.running = false;
-		window.clearInterval(grid.timer_handle);
-	}
-	//timer_tick();
-	mode_select_onchange();
-}
+        function unselectable(){
+            $('body, #paddle')
+                .attr('unselectable','on')
+                .css({
+                    '-moz-user-select':'-moz-none',
+                    '-moz-user-select':'none',
+                    '-o-user-select':'none',
+                    '-khtml-user-select':'none', /* you could also put this in a class */
+                    '-webkit-user-select':'none',/* and add the CSS class here instead */
+                    '-ms-user-select':'none',
+                    'user-select':'none'})
+                .bind('selectstart', function(){ return false; });
+        }
 
+        function bind_mousedown(e){
+            grid.is_dragging = true;
+            grid.paddle.move(e);
+            e.preventDefault();
+        }
 
-//-----------------------------------------------------------------------------
-function attach_button_click() {
-	// event called when "attach" button is clicked
-	grid.namespace.emit('attach');
-}
+        function bind_mousemove(e){
+            if(grid.is_dragging){
+                // dragging
+                grid.paddle.move(e);
+            }
+            e.preventDefault();
+        }
 
+        function bind_mouseup(e){
+            grid.is_dragging = false;
+            e.preventDefault();
+        }
 
-//-----------------------------------------------------------------------------
-function detach_button_click() {
-	// event called when "detach" button is clicked
-	grid.namespace.emit('detach');
-	button_update_color([220,220,220]);
-	status_update('Snake detached');
-}
+        function touch_handler(event) {
+            var touch = event.changedTouches[0];
 
+            var simulatedEvent = document.createEvent("MouseEvent");
+                simulatedEvent.initMouseEvent({
+                touchstart: "mousedown",
+                touchmove: "mousemove",
+                touchend: "mouseup"
+            }[event.type], true, true, window, 1,
+                touch.screenX, touch.screenY,
+                touch.clientX, touch.clientY, false,
+                false, false, false, 0, null);
 
-//-----------------------------------------------------------------------------
-function right_button_click() {
-	// event called when "right" button is clicked
-	grid.namespace.emit('turn', {turn: 'RIGHT'});
-}
+            touch.target.dispatchEvent(simulatedEvent);
+            event.preventDefault();
+        }
+        //-----------------------------------------------------------------------------
 
+        var Normalize = function(max_input){
+            //Cieling
+            this.min = 0;
+            this.max = 47;
+            //User's browser dims (width)
+            this.min_input = 0;
+            this.max_input = max_input;
+        }
 
+        Normalize.prototype.get = function(input){
+            // y = 1 + (x-A)*(10-1)/(B-A)
+            return Math.round(1 + (input-this.min_input)*(this.max-this.min)/(this.max_input-this.min_input));
+        }
 
-//-----------------------------------------------------------------------------
-function left_button_click() {
-	// event called when "left" button is clicked
-	grid.namespace.emit('turn', {turn: 'LEFT'});
-}
+        //-----------------------------------------------------------------------------
 
-//-----------------------------------------------------------------------------
-function play_button_click() {
-    // event called when "left" button is clicked
-    grid.namespace.emit('play');
-}
+        grid.state = {};
 
-//-----------------------------------------------------------------------------
-function test_button_click() {
-	// event called when "test" button is clicked
+        grid.state.idle = function(state){
+            bind_idle();
+            setTimeout(function(){
+                grid.audio.win.pause();
+                grid.audio.busy.pause();
+                grid.audio.waiting.pause();
+                grid.audio.countdown.pause();
+                grid.audio.lose.pause();
+            }, 3000);
+            if($('.finished.state canvas').length) funfetti_remove();
+        }
+        
+        grid.state.waiting = function(state){
+            bind_start();
+            grid.audio.waiting.play();
+        }
 
-	status_update("Test");
-	screen_update();
-}
+        grid.state.countdown = function(state){
+            grid.audio.countdown.play();
+            setTimeout(function(){
+                grid.audio.waiting.pause();
+            }, 3000)
+        }
 
+        grid.state.busy = function(state){
+            grid.audio.busy.play();
+        }
 
-//-----------------------------------------------------------------------------
-//
-function button_update_color(color) {
-	var oldColor = document.getElementById("right_button").style.backgroundColor;
-	document.getElementById("right_button").style.backgroundColor =
-		 'rgb(' + color[0] + ',' + color[1] + ',' + color[2] + ')';
-	document.getElementById("left_button").style.backgroundColor =
-		 'rgb(' + color[0] + ',' + color[1] + ',' + color[2] + ')';
-}
+        grid.state.forfeit = function(state){}
 
-//-----------------------------------------------------------------------------
-//
-function cell_update_color(x,y,color) {
-	var pixel_x = 0;
-	var pixel_y = 0;
-	pixel_x = grid.x_margin + (x * (grid.cell_width + grid.cell_margin));
-	pixel_y = grid.y_margin + (y * (grid.cell_height + grid.cell_margin));
-	var canvas_el = document.getElementById("canvas");
-	var canvas_context = canvas_el.getContext("2d");
-	canvas_context.fillStyle = color;
-	canvas_context.fillRect(pixel_x, pixel_y, grid.cell_width, grid.cell_height);
-}
+        grid.state.playing = function(state){
+            grid.paddle.on();
+            grid.paddle.paint();
+            grid.audio.countdown.pause();
+        }
 
+        grid.state.finished = function(state){
+            grid.paddle.off();
+        }
 
-//-----------------------------------------------------------------------------
-function status_update(status_str) {
-	html = "";
-	html += "<font color='#fff'>";
-	html += status_str;
-	html += "</font>";
-	document.getElementById("status_div").innerHTML = html;
-}
+        //-----------------------------------------------------------------------------
 
-//-----------------------------------------------------------------------------
-//
-function start() {
-	// content of html body
-	body_html = "";
-	body_html += "<button id='play_button' name='play' value='play'>Play</button>"
-	body_html += "<button id='stop_button' name='stop' value='stop'>Stop</button>"
-	body_html += "<button id='attach_button' name='attach' value='attach'>Attach Snake</button>"
-	body_html += "<button id='detach_button' name='detach' value='detach'>Detach Snake</button>"
-	body_html += "<button id='left_button' name='leftt' value='left'>Left</button>"
-	body_html += "<button id='right_button' name='right' value='right'>Right</button>"
-	body_html += "&nbsp; &nbsp; <span id='status_div'></span>";
-	body_html += "<br>";
-	body_html += "<canvas id='canvas' width='800' height='600'></canvas>";
-	document.getElementById("body").innerHTML = body_html;
+        var audio_init = function(){
+            var audio = {};
+                audio.waiting = new Audio("/assets/audio/busy.wav");
+                audio.countdown = new Audio("/assets/audio/countdown.wav");
+                audio.busy = new Audio("/assets/audio/busy.wav");
+                audio.hit = new Audio("/assets/audio/hit.wav");
+                audio.lose = new Audio("/assets/audio/lose.wav");
+                audio.win = new Audio("/assets/audio/win.wav");
+            return audio;
+        }
 
-	setup();
-	status_update("OK");
-}
+        var audio = function(file){
+            this.file = new Audio('file');
+        }
 
+        audio.prototype.play = function(){
+            this.file.play();
+        }
 
-function mode_select_onchange() {
-	var status_str;
-	if (grid.running) {
-		status_str = "Running";
-	} else {
-		status_str = "Stopped";
-	}
-	status_update(status_str);
-}
+        audio.prototype.pause = function(){
+            this.file.pause();
+            this.file.currentTime = 0;
+        }
 
-function int_to_hex(d) {
-	var padding = 2;
-    var hex = Number(d).toString(16);
-    padding = typeof (padding) === "undefined" || padding === null ? padding = 2 : padding;
+        
+        
+        //-----------------------------------------------------------------------------
+ 
+        function namespace_setup() {
+            grid.namespace = io.connect('/snakes');
 
-    while (hex.length < padding) {
-        hex = "0" + hex;
-    }
-    return hex;
-}
+            grid.namespace.on('connect', function(){
+                msg = "Connected";
 
+                // we need to attach right away
+                grid.namespace.emit('attach');
+                // status_update(msg);
+            });
 
-function screen_update() {
-	// get the current grid pixel colors from the server 
-    // then update the simulated screen with those colors
-    //
-	var xmlhttp=new XMLHttpRequest();	
-	xmlhttp.onreadystatechange=function() {
-	  if (xmlhttp.readyState==4 && xmlhttp.status==200) {
-		grid_data = JSON.parse(xmlhttp.responseText);
-		var i = 0;
-		for(row_num=1; row_num<=grid.cell_rows; row_num++) {
-			for(col_num=1; col_num<=grid.cell_cols; col_num++) {
-				color = grid_data[i];
-				color_str = "#" + int_to_hex(color[0]) + int_to_hex(color[1]) + int_to_hex(color[2]);
-				cell_update_color(col_num, row_num, color_str);
-				i++;
-			}
-		}
-	  }
-	}
- 	xmlhttp.open("GET","http://" + window.location.host + "/output",true);
-	xmlhttp.send();
-}
+            grid.namespace.on('disconnect', function(){
+                // button_update_color([220,220,220]);
+                // status_update('Disconnected');
+                $('body').attr('id', "disconnected")
+            });
 
+            grid.namespace.on('reconnect', function(){
+                msg = "Connected";
+                $('body').attr('id', "idle")
+                // status_update(msg);
+            });
 
-//-----------------------------------------------------------------------------
-// end of javascript
-//-----------------------------------------------------------------------------
-</script>
+            grid.namespace.on('snake', function(snake){
+                // they have returned to me a snake object.
+                // I should take the color and set a color on the screen
+                msg = "snake " + snake.id + " color " + snake.color;
+                grid.paddle.set_color(snake.color);
+                // status_update(msg);
+            });
+
+            grid.namespace.on('detach', function(state){
+                console.log('server told me to detach, and socket.io is limited soo...');
+                grid.namespace.emit('detach');
+            })
+
+            grid.namespace.on('state', function(state){
+                if(typeof grid.state[state] == "function") {
+                    $('body').attr("id", state);
+                    console.log("State", state);
+                    grid.state[state]();
+                } else {
+                    console.log("Error", "Server sent a state we aren't accounting for: "+state);
+                }
+            });
+
+            grid.namespace.on('won', function(snake){
+                console.log('You Won!')
+                $('.finished')
+                    .removeClass('died')
+                    .addClass('won');
+                funfetti.call(window, '.finished.state');
+                grid.audio.win.play();
+            });
+
+            grid.namespace.on('died', function(snake){
+                console.log('You died :(')
+                $('.finished')
+                    .removeClass('won')
+                    .addClass('died');
+                grid.audio.lose.play();
+            });
+
+            grid.namespace.on('connect_failed', function() {
+                setTimeout(function(){
+                    location.reload();
+                }, 3000);
+                $('body').attr("id", 'connection-error');
+            })
+
+            grid.namespace.on('errorMsg', function(msg){
+                // status_update(msg.text);
+            });
+        }
+
+        //-----------------------------------------------------------------------------
+        var anonymize_plebes = function(){
+            $(".plebes").randomize("span");
+        }
+
+        //-----------------------------------------------------------------------------
+
+        // (function($) {
+
+        $.fn.randomize = function(childElem) {
+          return this.each(function() {
+              var $this = $(this);
+              var elems = $this.children(childElem);
+
+              elems.sort(function() { return (Math.round(Math.random())-0.5); });  
+
+              $this.remove(childElem);  
+
+              for(var i=0; i < elems.length; i++)
+                $this.append(elems[i]);      
+
+          });    
+        }
+
+        // })(jQuery);
+
+        //-----------------------------------------------------------------------------
+
+        $(function(){ setup(); });
+
+        //-----------------------------------------------------------------------------
+        // end of javascript
+        //-----------------------------------------------------------------------------
+    </script>
 </head>
-<body id="body" class="dimmed" onload="start()"; >
+<body id="body">
+
+    <div class="meta">
+        <div class="title">Snake</div>
+        <span class="version">v0.2.0</span>
+    </div>
+
+    <div class="idle state">
+        <span class="status-text play-btn"><span>Play</span></span>
+    </div>
+    
+    <div class="waiting state">
+        <span class="status-text start-btn"><span>Start</span></span>
+    </div>
+
+    <div class="busy state">
+        <span class="status-text">There's already a game in progress.</span>
+    </div>
+    
+    <div class="countdown state">
+        <span class="status-text">Game beginning in...</span>
+    </div>
+
+    <div class="error state">
+        <span class="status-text">There was a connection error.</span>
+    </div>
+    
+    <div class="playing state">
+        <div id="paddle"></div>
+    </div>
+    
+    <div class="finished state">
+        <span class="status-text won">You Won!</span>
+        <span class="status-text died">You Died.</span>
+    </div>
+
+    <div class="plebes meta">
+        <span>Michael Weiss</span>
+        <span>Sean Mitchell</span>
+        <span>Matt Olson</span>
+    </div>
+
 </body>
 </html>
