@@ -2,7 +2,7 @@
 // Blinken Server
 //------------------------------------------------------------------------------
 
-var program_name = "Blinken v0.1";
+var program_name = "Blinken v0.3.3";
 var debug_level = 3;
 if (debug_level > 0) console.log("\n" + program_name + "\n");
 
