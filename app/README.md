@@ -4,7 +4,7 @@ _0.2.1 alpha_
 
 Blinken is a channel manager and mixer for a matrix of lights. It was designed for the cieling in Idea Fabrication Labs in Chico, CA for it's 2880 RGB pixel cieling array. It is a basically a channel mixer. Each channel can have a source assigned to it.
 
-The app is located in /driver with project specific files in /docs
+The app is located in `/app` with project specific files in `/docs`
 
 ## What is the point?
 
@@ -38,20 +38,20 @@ The API can be accessed via REST of Websockets for bi-directional communication.
 
 ### Sources
 
-* GET /sources returns list of known sources
+* `GET /sources` returns list of known sources
 
 ### channels
 
-* GET /mixer/channels returns list of channels currently defined
-* POST /mixer/channels adds a channel to the stack
-* GET /mixer/channels/:id returns info about a particular channel (:id is the id assigned by the system)
-* PUT /mixer/channels/:id updates the channel with a new source and/or options
-* DELETE /mixer/channels/:id removes the channel from the stack
+* `GET /mixer/channels` returns list of channels currently defined
+* `POST /mixer/channels` adds a channel to the stack
+* `GET /mixer/channels/:id` returns info about a particular channel (:id is the id assigned by the system)
+* `PUT /mixer/channels/:id` updates the channel with a new source and/or options
+* `DELETE /mixer/channels/:id` removes the channel from the stack
 
 ### Grid
 
-* GET /grid returns the current color state of the array
-* GET /grid/:x/:y returns the current color state of a particular pixel
+* `GET /grid` returns the current color state of the array
+* `GET /grid/:x/:y` returns the current color state of a particular pixel
 
 ## Websockets
 
@@ -59,19 +59,19 @@ The API can be accessed via REST of Websockets for bi-directional communication.
 
 #### Sources
 
-* 'list sources'
+* `list sources`
 
 #### Channels 
 
-* 'list channels' 
-* 'create channel' *channel_name*, *source_name*, *source_options* returns channel_id
-* 'update channel' *channel_id*, *channel_options*
-* 'destroy channel' *channel_id*
-* 'get channel' *channel_id*
+* `list channels` 
+* `create channel` *channel_name*, *source_name*, *source_options* returns channel_id
+* `update channel` *channel_id*, *channel_options*
+* `destroy channel` *channel_id*
+* `get channel` *channel_id*
 
 #### Grid
 
-* 'get grid' - get master grid
+* `get grid` - get master grid
 
 ### example 
 
@@ -81,25 +81,27 @@ The API can be accessed via REST of Websockets for bi-directional communication.
 
 #### Sources
 
-* 'refresh sources' - returns sources
+* `refresh sources` - returns sources
 
 #### Channels 
 
-* 'refresh channels' - returns channel object
-* 'channel created' - returns ID, 'refresh channels' event concurrently called.
-* 'channel updated' - returns ID, 'refresh channels' event concurrently called.
-* 'channel destroyed' - returns ID, 'refresh channels' event concurrently called.
-* 'channel result' - returns requested channel
+* `refresh channels` - returns channel object
+* `channel created` - returns ID, 'refresh channels' event concurrently called.
+* `channel updated` - returns ID, 'refresh channels' event concurrently called.
+* `channel destroyed` - returns ID, 'refresh channels' event concurrently called.
+* `channel result` - returns requested channel
 
 #### Grid
 
-* 'refresh grid' - returns grid object
+* `refresh grid` - returns grid object
 
 ### example 
 
-```socket.on('refresh channels', function(channels){
+```
+socket.on('refresh channels', function(channels){
 	alert(channels.length);
-})```
+})
+```
 
 # Objects
 
