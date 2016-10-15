@@ -74,11 +74,11 @@ function updatePaddlePositions()
         // Follow along with the ball's position:
         if (this.player2.posY < this.ball.posY)
         {
-            this.player2.posY += this.enemyVelY;
+            this.player2.posY += this.player2.velY;
         }
         else if(this.player2.posY > this.ball.posY)
         {
-            this.player2.posY -= this.enemyVelY;
+            this.player2.posY -= this.player2.velY;
         }
     }
 
@@ -433,11 +433,9 @@ function Pong(grid, options) {
         id: 2
     };
 
-    this.enemyVelY = 0.5;
-
     this.ball = {
         radius: 1,
-        speedX: 0.45,
+        speedX: this.options.ballSpeed,
         posX: 0.0,
         posY: 0.0,
         velX: 0.0,
@@ -653,12 +651,12 @@ Pong.prototype.reset = function(){
     console.log('Grid', "Reset");
 
     // these should be set to this when we reset the game
-    this.player1.posX = 1.0 + this.paddle.halfWidth;
-    this.player2.posX = this.grid.num_pixels_x - 1.0 - this.paddle.halfWidth;
+ //   this.player1.posX = 1.0 + this.paddle.halfWidth;
+    this.player1.posX = 0;
+    this.player2.posX = this.grid.num_pixels_x - 1;
     this.ball.velX = -1.0 * this.ball.speedX;
     this.ball.posX = this.grid.num_pixels_x  / 2.0;
     this.ball.posY = this.grid.num_pixels_y / 2.0;
-    this.enemyVelY = 0.3;
 
     this.resetScores();
 
@@ -718,7 +716,7 @@ Pong.prototype.detachAll = function(){
 
 Pong.prototype.paddles = function(){
     this.paddle.width = 1;
-    this.paddle.height =  this.grid.num_pixels_y / 4.0;
+    this.paddle.height =  this.options.paddleHeight;
     this.paddle.halfWidth = this.paddle.width / 2.0;
     this.paddle.halfHeight = this.paddle.height / 2.0;
 }
@@ -729,20 +727,23 @@ Pong.options_spec = function() {
         'name' : 'scoreToWin',
         'type' : 'integer',
         'default' : 6
-    }, {
-        'name' : 'playMode',
-        'type' : 'string',
-        'default' : 'Auto'
-    }, {
+    },{
         'name' : 'velY1',
         'type' : 'float',
-        'default' : 3
+        'default' : 2.25
     }, {
         'name' : 'velY2',
         'type' : 'float',
-        'default' : 0.5
+        'default' : 0.51
+    }, {
+        'name': 'ballSpeed',
+        'type': 'float',
+        'default': 0.65
+    }, {
+        'name': 'paddleHeight',
+        'type': 'integer',
+        'default': 8
     }
-
 
     ].concat(Game.options_spec());
 };
