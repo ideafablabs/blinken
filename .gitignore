@@ -1,5 +1,5 @@
-driver/node_modules
+app/node_modules
 .DS_Store
-driver/config.js
+app/config.js
 *.log
 .vagrant

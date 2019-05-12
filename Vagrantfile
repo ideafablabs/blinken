@@ -13,13 +13,10 @@ Vagrant.configure(2) do |config|
     v.cpus = 2
   end
 
-  # config.vm.provision :shell, :path => "bin/vagrant/dependencies.sh"
   config.vm.provision :shell, :path => "bin/vagrant/nodejs.sh"
   config.vm.provision :shell, :path => "bin/vagrant/npm.sh"
 
-  config.trigger.after :up do
-    # run_remote "bash /vagrant/bin/vagrant/npm.sh"
-    # run_remote "bash /vagrant/bin/vagrant/npm.sh"
-  end
+  #config.trigger.after :up do
+  #end
 
 end

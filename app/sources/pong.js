@@ -128,6 +128,9 @@ function moveBall()
         this.ball.velX = this.ball.speedX;
         this.player2.score++;
         this.player2.showScore = 5;
+        if(this.player2.socket) this.player2.socket.emit('score');
+        if(this.player1.socket) this.player1.socket.emit('miss');
+
     }
     else if (this.ball.posX > this.grid.num_pixels_x - this.ball.radius)
     {
@@ -135,6 +138,8 @@ function moveBall()
         this.ball.velX *= -1.0 * this.ball.speedX;
         this.player1.score++;
         this.player1.showScore = 5;
+        if(this.player1.socket) this.player1.socket.emit('score');
+        if(this.player2.socket) this.player2.socket.emit('miss');
     }
 
     // Paddle collisions
@@ -145,7 +150,9 @@ function moveBall()
         {
             this.ball.velX = this.ball.speedX;
             this.ball.velY = 2.0 * (this.ball.posY - this.player1.posY) / this.paddle.halfHeight;
+            if(this.player1.socket) this.player1.socket.emit('hit');
         }
+        
     }
     else if (this.ball.posX > this.player2.posX - this.ball.radius - this.paddle.halfWidth)
     {
@@ -154,6 +161,7 @@ function moveBall()
         {
             this.ball.velX = -1.0 * this.ball.speedX;
             this.ball.velY = 1.5 * (this.ball.posY - this.player2.posY) / this.paddle.halfHeight;
+            if(this.player2.socket) this.player2.socket.emit('hit');
         }
     }
 
